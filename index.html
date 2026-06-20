@@ -747,6 +747,32 @@ function getDeviceId() {
   return id;
 }
 
+// ── 교대 선택 ──
+let selectedShift = null;
+
+window.selectShift = (shiftName) => {
+  ['sbtn-day','sbtn-eve','sbtn-ngt','sbtn-off'].forEach(id => {
+    const btn = $(id); if(btn) btn.className = 'shift-btn';
+  });
+  if(shiftName === '데이'){
+    $('sbtn-day').classList.add('active-day');
+    selectedShift = SHIFTS[0];
+  } else if(shiftName === '이브닝'){
+    $('sbtn-eve').classList.add('active-eve');
+    selectedShift = SHIFTS[1];
+  } else if(shiftName === '나이트'){
+    $('sbtn-ngt').classList.add('active-ngt');
+    selectedShift = SHIFTS[2];
+  } else {
+    $('sbtn-off').classList.add('active-off');
+    selectedShift = { name:'오프', start:'', end:'', startM:0, window:[0,1440] };
+  }
+  const noticeEl = $('shift-auto-notice');
+  if(noticeEl){ noticeEl.textContent = `✅ ${shiftName} 선택됨`; noticeEl.style.color='var(--primary)'; }
+};
+// selectShift를 window에 등록 (onclick에서 호출)
+window.selectShift = window.selectShift;
+
 // ── 관리자/직원 전환 ──
 
 // ── 관리자 모드 선택 ──
@@ -931,17 +957,19 @@ async function loadEmpPage() {
   if(adminBtn) adminBtn.style.display=(meData.role==='admin'||meData.role==='superadmin')?'block':'none';
   startClock();
   checkNetwork();
-  updateShiftBanner();
   loadSecurityInfo();
-  // 설정 다시 로드 후 교대 선택 UI 표시
-  await loadSettings();
-  const shiftWrap=$('shift-select-wrap');
-  if(shiftWrap) shiftWrap.style.display=settings.mode==='shift'?'block':'none';
-  if(settings.mode==='shift') autoDetectAndSelectShift();
   // 이름 편집창에 현재 이름 표시
   const nameEdit=$('myname-edit');
   if(nameEdit) nameEdit.placeholder = meData.name||'실명 입력';
-  loadTodayAtt();
+  // 설정 로드 + 오늘 기록 순서대로 await
+  await loadSettings();
+  await loadTodayAtt(); // 출근 완료 여부 먼저 확인
+  // 출근 완료 상태가 아닐 때만 교대 선택 표시
+  const isClockInDone = $('btn-in').textContent.includes('완료');
+  const shiftWrap=$('shift-select-wrap');
+  if(shiftWrap) shiftWrap.style.display=(settings.mode==='shift'&&!isClockInDone)?'block':'none';
+  if(settings.mode==='shift'&&!isClockInDone) autoDetectAndSelectShift();
+  updateShiftBanner();
   loadWeek();
   $('my-month').value = nowMonth();
   loadMyHistory();
@@ -1167,7 +1195,10 @@ async function checkNetwork() {
     } else if(isAdmin) {
       isNetOk = true;
       banner.className = 'net-banner net-ok';
-      $('net-text').textContent = `관리자 접속 (외부망: ${ip})`;
+      $('net-text').textContent = `관리자 — 외부망 접속 허용됨 (${ip})`;
+      // 보안 정보 IP에도 관리자 표시
+      const ipEl2=$('my-ip');
+      if(ipEl2) ipEl2.innerHTML = `${ip} <span style="color:var(--success);font-size:10px;">✓ 관리자 접속</span>`;
     } else {
       isNetOk = false;
       banner.className = 'net-banner net-fail';
@@ -1187,25 +1218,35 @@ async function loadSecurityInfo() {
   // 기기 ID
   const did = getDeviceId();
   const didEl=$('my-device-id');
-  if(didEl) didEl.textContent = did;
+  if(didEl){
+    // 전체 ID는 길어서 앞 10자 + ... 표시, 전체는 title에
+    didEl.textContent = did.slice(0,20) + '...';
+    didEl.title = did;
+    didEl.style.cursor = 'help';
+  }
 
   // GPS
   const gpsEl=$('my-gps');
   if(!gpsEl) return;
   if(!navigator.geolocation){ gpsEl.textContent='GPS 미지원'; return; }
-  gpsEl.textContent='위치 확인 중...';
+  gpsEl.innerHTML = '위치 확인 중... <span style="font-size:10px;color:var(--gray-400);">(최대 15초)</span>';
   navigator.geolocation.getCurrentPosition(
     pos => {
       myGps = { lat:pos.coords.latitude, lng:pos.coords.longitude, acc:Math.round(pos.coords.accuracy) };
       gpsEl.innerHTML = `위도: ${myGps.lat.toFixed(6)}<br>경도: ${myGps.lng.toFixed(6)}<br>정확도: ±${myGps.acc}m
         <a href="https://maps.google.com/?q=${myGps.lat},${myGps.lng}" target="_blank"
-           style="display:inline-block;margin-top:4px;font-size:11px;color:var(--primary);">지도에서 보기 →</a>`;
+           style="display:inline-block;margin-top:4px;font-size:11px;color:var(--primary);">📍 지도에서 확인</a>`;
     },
     err => {
-      gpsEl.textContent = err.code===1?'위치 권한 거부됨':'GPS 확인 실패';
+      const msg = err.code===1
+        ? '위치 권한 거부됨 — 브라우저 설정에서 허용해주세요'
+        : err.code===3
+        ? '위치 확인 시간 초과 — 실내에서는 정확도가 낮을 수 있습니다'
+        : 'GPS 확인 실패';
+      gpsEl.innerHTML = `<span style="color:var(--warning);">⚠ ${msg}</span>`;
       myGps = null;
     },
-    { enableHighAccuracy:true, timeout:8000 }
+    { enableHighAccuracy:true, timeout:15000, maximumAge:30000 }
   );
 }
 
@@ -1416,7 +1457,7 @@ window.clockOut = async () => {
     const totalM2 = now.getHours()*60+now.getMinutes();
     if(totalM2 <= 8*60+30){
       const yesterday = new Date(now); yesterday.setDate(yesterday.getDate()-1);
-      targetDate = yesterday.toISOString().slice(0,10);
+      targetDate = `${yesterday.getFullYear()}-${pad(yesterday.getMonth()+1)}-${pad(yesterday.getDate())}`;
     }
   }
 
@@ -2045,13 +2086,13 @@ function detectShift(now) {
 }
 
 function getShiftInfo(shift, now) {
-  // 출근 날짜 / 퇴근 날짜 계산
-  const today2 = now.toISOString().slice(0,10);
-  let shiftDate = today2;
+  // 출근 날짜 / 퇴근 날짜 계산 (로컬 날짜 사용 - UTC 오차 방지)
+  const localDate = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  let shiftDate = localDate(now);
   if(shift.continuing) {
     // 자정 넘어서 출근한 나이트 → 전날 날짜로 기록
     const yesterday = new Date(now); yesterday.setDate(yesterday.getDate()-1);
-    shiftDate = yesterday.toISOString().slice(0,10);
+    shiftDate = localDate(yesterday);
   }
   // 지각 계산
   const nowM = now.getHours()*60+now.getMinutes();
