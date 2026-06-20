@@ -157,6 +157,25 @@ td{padding:12px 14px;border-bottom:1px solid var(--gray-100);color:var(--gray-80
 tr:last-child td{border-bottom:none;}
 tr:hover td{opacity:0.92;}
 
+/* 달력 뷰 */
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:4px;}
+.cal-head{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:2px;}
+.cal-head-cell{text-align:center;font-size:11px;font-weight:700;padding:4px;color:var(--gray-500);}
+.cal-head-cell:first-child{color:var(--danger);}
+.cal-head-cell:last-child{color:#3b82f6;}
+.cal-cell{min-height:80px;background:#fff;border-radius:8px;padding:4px;box-shadow:0 1px 4px rgba(0,0,0,.05);position:relative;overflow:visible;}
+.cal-cell.empty{background:var(--gray-50);box-shadow:none;}
+.cal-date{font-size:11px;font-weight:700;color:var(--gray-500);margin-bottom:3px;}
+.cal-date.sun{color:var(--danger);}
+.cal-date.sat{color:#3b82f6;}
+.cal-chip{font-size:9px;font-weight:600;padding:2px 5px;border-radius:4px;margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;}
+.cal-chip:hover .cal-tooltip{display:block;}
+.cal-chip.day-chip{background:#fff7ed;color:#c2410c;}
+.cal-chip.eve-chip{background:#eff6ff;color:#1d4ed8;}
+.cal-chip.ngt-chip{background:#eef2ff;color:#4338ca;}
+.cal-chip.etc-chip{background:var(--gray-100);color:var(--gray-500);}
+.cal-tooltip{display:none;position:absolute;left:0;top:100%;z-index:100;background:#1f2937;color:#fff;font-size:11px;padding:6px 8px;border-radius:6px;white-space:nowrap;min-width:140px;line-height:1.6;box-shadow:0 4px 12px rgba(0,0,0,.3);}
+
 /* 모달 */
 .modal-back{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:flex-end;justify-content:center;}
 .modal-back.open{display:flex;}
@@ -434,18 +453,28 @@ tr:hover td{opacity:0.92;}
     <!-- 월별 보고서 -->
     <div class="a-sec" id="sec-monthly">
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
-        <input type="month" id="report-month" style="padding:8px 12px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;">
-        <select id="report-dept" style="padding:8px 12px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;" onchange="loadMonthly()">
+        <input type="month" id="report-month" style="padding:8px 12px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;" onchange="window.loadMonthly()">
+        <select id="report-dept" style="padding:8px 12px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;" onchange="window.loadMonthly()">
           <option value="">전체 부서</option>
         </select>
-        <button class="btn-sm" onclick="loadMonthly()">조회</button>
-        <button onclick="window.exportMonthCSV()" style="padding:7px 14px;background:var(--success);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">📊 엑셀</button>
+        <div style="display:flex;gap:6px;margin-left:auto;">
+          <button class="btn-sm" id="btn-view-table" onclick="switchMonthView('table')" style="color:var(--primary);border-color:var(--primary);">📋 표</button>
+          <button class="btn-sm" id="btn-view-cal" onclick="switchMonthView('cal')">📅 달력</button>
+          <button onclick="window.exportMonthCSV()" style="padding:7px 14px;background:var(--success);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">📊 엑셀</button>
+        </div>
       </div>
-      <div class="tbl-wrap">
-        <table>
-          <thead><tr><th>이름</th><th>부서</th><th>근무일</th><th>지각</th><th>조퇴</th><th>연장</th><th>총 근무시간</th></tr></thead>
-          <tbody id="monthly-tbody"></tbody>
-        </table>
+      <!-- 표 뷰 -->
+      <div id="monthly-table-view">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>이름</th><th>부서</th><th>근무일</th><th>지각</th><th>조퇴</th><th>연장</th><th>총 근무시간</th></tr></thead>
+            <tbody id="monthly-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <!-- 달력 뷰 -->
+      <div id="monthly-cal-view" style="display:none;">
+        <div id="monthly-calendar"></div>
       </div>
     </div>
 
@@ -2037,7 +2066,7 @@ window.loadMemberReport = async () => {
     const outT=r.clockOut?fmt(r.clockOut.toDate()):'—';
     let mins=0; if(r.clockIn&&r.clockOut){ mins=Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000); totalMin+=mins; }
     workDays++; if(r.lateMin>0) lateCnt++; if(r.earlyMin>0) earlyC++; otH+=r.otMin||0;
-    const [,, dd]=r.date.split('-'); const dow3=new Date(r.date+'T00:00:00').getDay();
+    const dow3=new Date(r.date+'T00:00:00').getDay();
     const badge=r.lateMin>0?`<span class="badge b-late">지각 +${r.lateMin}분</span>`:r.otMin>0?`<span class="badge b-ot">연장 +${r.otMin}분</span>`:r.earlyMin>0?`<span class="badge b-early">조퇴 -${r.earlyMin}분</span>`:`<span class="badge b-ok">정상</span>`;
     const gpsStr=r.clockInGps?`<a href="https://maps.google.com/?q=${r.clockInGps.lat},${r.clockInGps.lng}" target="_blank" style="font-size:10px;color:var(--primary);">📍지도</a>`:'—';
     html+=`<tr><td>${r.date.slice(5)} ${DAYS[dow3]}</td><td>${r.shiftName||'—'}</td><td>${inT}</td><td>${outT}</td>
@@ -2153,6 +2182,117 @@ window.testTelegram = async () => {
   } catch(e){ toast('오류: '+e.message,'error'); }
 };
 
+// ── 월별 달력 뷰 ──
+let calMonthData = {}; // date → [records]
+
+window.switchMonthView = (mode) => {
+  const tbl=$('monthly-table-view'), cal=$('monthly-cal-view');
+  const btnT=$('btn-view-table'), btnC=$('btn-view-cal');
+  if(mode==='table'){
+    tbl.style.display='block'; cal.style.display='none';
+    btnT.style.color='var(--primary)'; btnT.style.borderColor='var(--primary)';
+    btnC.style.color=''; btnC.style.borderColor='';
+    window.loadMonthly();
+  } else {
+    tbl.style.display='none'; cal.style.display='block';
+    btnC.style.color='var(--primary)'; btnC.style.borderColor='var(--primary)';
+    btnT.style.color=''; btnT.style.borderColor='';
+    renderCalendar();
+  }
+};
+
+async function renderCalendar() {
+  const m = $('report-month').value || nowMonth();
+  const [y, mo] = m.split('-');
+  const deptF = $('report-dept').value;
+
+  // 해당 월 전체 기록 로드
+  const snap = await getDocs(query(
+    collection(db,'attendance_simple'),
+    where('date','>=',`${y}-${mo}-01`),
+    where('date','<=',`${y}-${mo}-31`)
+  ));
+
+  // date별 기록 맵핑
+  const dayMap = {};
+  snap.forEach(d => {
+    const r = d.data();
+    if(deptF && r.dept !== deptF) return;
+    if(!dayMap[r.date]) dayMap[r.date] = [];
+    dayMap[r.date].push(r);
+  });
+
+  // 달력 생성
+  const firstDay = new Date(`${y}-${mo}-01`);
+  const lastDay  = new Date(parseInt(y), parseInt(mo), 0);
+  const startDow = firstDay.getDay(); // 0=일
+  const totalDays = lastDay.getDate();
+
+  const DAYS_KO = ['일','월','화','수','목','금','토'];
+  let html = `<div style="text-align:center;font-size:15px;font-weight:700;color:var(--gray-800);margin-bottom:10px;">${y}년 ${parseInt(mo)}월</div>`;
+  html += '<div class="cal-head">';
+  DAYS_KO.forEach(d => html += `<div class="cal-head-cell">${d}</div>`);
+  html += '</div><div class="cal-grid">';
+
+  // 앞 빈칸
+  for(let i=0; i<startDow; i++) html += '<div class="cal-cell empty"></div>';
+
+  for(let day=1; day<=totalDays; day++){
+    const dateStr = `${y}-${mo}-${String(day).padStart(2,'0')}`;
+    const dow = new Date(dateStr+'T00:00:00').getDay();
+    const records = dayMap[dateStr] || [];
+
+    // 교대별 그룹
+    const groups = { '데이':[], '이브닝':[], '나이트':[], '기타':[] };
+    records.forEach(r => {
+      const k = r.shiftName==='데이'?'데이':r.shiftName==='이브닝'?'이브닝':r.shiftName==='나이트'?'나이트':'기타';
+      groups[k].push(r);
+    });
+
+    const dowClass = dow===0?'sun':dow===6?'sat':'';
+    html += `<div class="cal-cell">`;
+    html += `<div class="cal-date ${dowClass}">${day}</div>`;
+
+    // 데이
+    if(groups['데이'].length > 0){
+      const names = groups['데이'].map(r=>`${r.name} ${r.clockIn?fmt(r.clockIn.toDate()):'?'}→${r.clockOut?fmt(r.clockOut.toDate()):'재직'}`).join(' / ');
+      const label = groups['데이'].length<=2 ? groups['데이'].map(r=>r.name).join(', ') : `${groups['데이'][0].name} 외 ${groups['데이'].length-1}명`;
+      html += `<div class="cal-chip day-chip">🌅 ${label}<div class="cal-tooltip">🌅 데이 (${groups['데이'].length}명)
+${names}</div></div>`;
+    }
+    // 이브닝
+    if(groups['이브닝'].length > 0){
+      const names = groups['이브닝'].map(r=>`${r.name} ${r.clockIn?fmt(r.clockIn.toDate()):'?'}→${r.clockOut?fmt(r.clockOut.toDate()):'재직'}`).join(' / ');
+      const label = groups['이브닝'].length<=2 ? groups['이브닝'].map(r=>r.name).join(', ') : `${groups['이브닝'][0].name} 외 ${groups['이브닝'].length-1}명`;
+      html += `<div class="cal-chip eve-chip">🌆 ${label}<div class="cal-tooltip">🌆 이브닝 (${groups['이브닝'].length}명)
+${names}</div></div>`;
+    }
+    // 나이트
+    if(groups['나이트'].length > 0){
+      const names = groups['나이트'].map(r=>`${r.name} ${r.clockIn?fmt(r.clockIn.toDate()):'?'}→${r.clockOut?fmt(r.clockOut.toDate()):'재직'}`).join(' / ');
+      const label = groups['나이트'].length<=2 ? groups['나이트'].map(r=>r.name).join(', ') : `${groups['나이트'][0].name} 외 ${groups['나이트'].length-1}명`;
+      html += `<div class="cal-chip ngt-chip">🌙 ${label}<div class="cal-tooltip">🌙 나이트 (${groups['나이트'].length}명)
+${names}</div></div>`;
+    }
+    // 기타
+    if(groups['기타'].length > 0){
+      const names = groups['기타'].map(r=>`${r.name} ${r.clockIn?fmt(r.clockIn.toDate()):'?'}→${r.clockOut?fmt(r.clockOut.toDate()):'재직'}`).join(' / ');
+      const label = groups['기타'].length<=2 ? groups['기타'].map(r=>r.name).join(', ') : `${groups['기타'][0].name} 외 ${groups['기타'].length-1}명`;
+      html += `<div class="cal-chip etc-chip">📋 ${label}<div class="cal-tooltip">📋 기타 (${groups['기타'].length}명)
+${names}</div></div>`;
+    }
+
+    html += '</div>';
+  }
+
+  // 뒤 빈칸
+  const endDow = lastDay.getDay();
+  for(let i=endDow+1; i<7; i++) html += '<div class="cal-cell empty"></div>';
+  html += '</div>';
+
+  $('monthly-calendar').innerHTML = html;
+}
+
 // 나머지 함수 window 등록 (스크립트 끝에서 등록해야 함수 선언 후 실행)
 window.loadToday       = loadToday;
 window.loadMonthly     = loadMonthly;
@@ -2164,6 +2304,7 @@ window.loadMembers     = loadMembers;
 window.loadDevices     = loadDevices;
 window.loadSettings2   = loadSettings2;
 window.loadCancelLogs  = loadCancelLogs;
+window.switchMonthView = switchMonthView;
 
 // 초대 링크
 window.copyInvite = () => {
