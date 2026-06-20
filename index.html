@@ -157,6 +157,12 @@ td{padding:12px 14px;border-bottom:1px solid var(--gray-100);color:var(--gray-80
 tr:last-child td{border-bottom:none;}
 tr:hover td{opacity:0.92;}
 
+/* 교대 선택 버튼 */
+.shift-btn.active-day{border-color:#fb923c!important;background:#fff7ed!important;color:#c2410c!important;}
+.shift-btn.active-eve{border-color:#3b82f6!important;background:#eff6ff!important;color:#1d4ed8!important;}
+.shift-btn.active-ngt{border-color:#6366f1!important;background:#eef2ff!important;color:#4338ca!important;}
+.shift-btn.active-off{border-color:var(--gray-400)!important;background:var(--gray-100)!important;color:var(--gray-600)!important;}
+
 /* 달력 뷰 */
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:4px;}
 .cal-head{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:2px;}
@@ -170,11 +176,12 @@ tr:hover td{opacity:0.92;}
 .cal-date.sat{color:#3b82f6;}
 .cal-chip{font-size:9px;font-weight:600;padding:2px 5px;border-radius:4px;margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;}
 .cal-chip:hover .cal-tooltip{display:block;}
+.cal-chip:focus .cal-tooltip{display:block;}
 .cal-chip.day-chip{background:#fff7ed;color:#c2410c;}
 .cal-chip.eve-chip{background:#eff6ff;color:#1d4ed8;}
 .cal-chip.ngt-chip{background:#eef2ff;color:#4338ca;}
 .cal-chip.etc-chip{background:var(--gray-100);color:var(--gray-500);}
-.cal-tooltip{display:none;position:absolute;left:0;top:100%;z-index:100;background:#1f2937;color:#fff;font-size:11px;padding:6px 8px;border-radius:6px;white-space:nowrap;min-width:140px;line-height:1.6;box-shadow:0 4px 12px rgba(0,0,0,.3);}
+.cal-tooltip{display:none;position:absolute;left:0;top:100%;z-index:200;background:#1f2937;color:#fff;font-size:11px;padding:8px 10px;border-radius:8px;min-width:160px;line-height:1.8;box-shadow:0 4px 12px rgba(0,0,0,.3);pointer-events:none;}
 
 /* 모달 */
 .modal-back{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:flex-end;justify-content:center;}
@@ -320,8 +327,17 @@ tr:hover td{opacity:0.92;}
     </div>
     <!-- 출퇴근 -->
     <div class="card">
-      <!-- 3교대 감지 배너 -->
-      <div id="shift-detect-banner" style="display:none;background:var(--primary-light);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--primary);font-weight:600;text-align:center;"></div>
+      <!-- 교대 선택 (3교대 모드일 때만 표시) -->
+      <div id="shift-select-wrap" style="display:none;margin-bottom:14px;">
+        <div style="font-size:12px;font-weight:600;color:var(--gray-500);margin-bottom:8px;">근무 교대 선택</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
+          <button class="shift-btn" id="sbtn-day"     onclick="selectShift('데이')"    style="padding:10px 4px;border:2px solid var(--gray-200);border-radius:10px;background:#fff;cursor:pointer;font-size:12px;font-weight:600;color:var(--gray-500);">🌅<br>데이<br><span style="font-size:9px;font-weight:400;">07:00~15:00</span></button>
+          <button class="shift-btn" id="sbtn-eve"     onclick="selectShift('이브닝')"  style="padding:10px 4px;border:2px solid var(--gray-200);border-radius:10px;background:#fff;cursor:pointer;font-size:12px;font-weight:600;color:var(--gray-500);">🌆<br>이브닝<br><span style="font-size:9px;font-weight:400;">14:00~22:00</span></button>
+          <button class="shift-btn" id="sbtn-ngt"     onclick="selectShift('나이트')"  style="padding:10px 4px;border:2px solid var(--gray-200);border-radius:10px;background:#fff;cursor:pointer;font-size:12px;font-weight:600;color:var(--gray-500);">🌙<br>나이트<br><span style="font-size:9px;font-weight:400;">21:00~08:00</span></button>
+          <button class="shift-btn" id="sbtn-off"     onclick="selectShift('오프')"    style="padding:10px 4px;border:2px solid var(--gray-200);border-radius:10px;background:#fff;cursor:pointer;font-size:12px;font-weight:600;color:var(--gray-500);">🏖️<br>오프<br><span style="font-size:9px;font-weight:400;">자유근무</span></button>
+        </div>
+        <div id="shift-auto-notice" style="font-size:11px;color:var(--gray-400);margin-top:6px;text-align:center;"></div>
+      </div>
       <div class="att-times">
         <div class="att-box">
           <div class="att-label">출근</div>
@@ -360,6 +376,13 @@ tr:hover td{opacity:0.92;}
           <button onclick="updateMyName()" style="padding:10px 14px;background:var(--primary);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">저장</button>
         </div>
       </div>
+    </div>
+
+    <!-- 홈 화면 추가 -->
+    <div id="pwa-install-card" style="display:none;">
+      <button onclick="installPWA()" style="width:100%;padding:14px;background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff;border:none;border-radius:var(--radius);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 12px rgba(26,107,74,.3);">
+        📱 홈 화면에 앱으로 추가하기
+      </button>
     </div>
 
     <!-- 보안 정보 카드 -->
@@ -913,6 +936,10 @@ function loadEmpPage() {
   checkNetwork();
   updateShiftBanner();
   loadSecurityInfo();
+  // 3교대 모드면 교대 선택 UI 표시 + 자동 감지
+  const shiftWrap=$('shift-select-wrap');
+  if(shiftWrap) shiftWrap.style.display=settings.mode==='shift'?'block':'none';
+  if(settings.mode==='shift') autoDetectAndSelectShift();
   // 이름 편집창에 현재 이름 표시
   const nameEdit=$('myname-edit');
   if(nameEdit) nameEdit.placeholder = meData.name||'실명 입력';
@@ -936,6 +963,33 @@ window.updateMyName = async () => {
     toast(`"${name}" 으로 변경됐습니다`,'success');
   } catch(e){ toast('오류: '+e.message,'error'); }
 };
+
+// ── PWA 설치 ──
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  const card = $('pwa-install-card');
+  if(card) card.style.display = 'block';
+});
+window.installPWA = async () => {
+  if(!deferredPrompt){
+    // iOS 안내
+    toast('Safari에서 공유 버튼 → "홈 화면에 추가" 를 눌러주세요!','success');
+    return;
+  }
+  deferredPrompt.prompt();
+  const {outcome} = await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  if(outcome==='accepted'){
+    $('pwa-install-card').style.display='none';
+    toast('홈 화면에 추가됐습니다! 🎉','success');
+  }
+};
+window.addEventListener('appinstalled', () => {
+  const card=$('pwa-install-card');
+  if(card) card.style.display='none';
+});
 
 // ── 보안 정보 로드 ──
 let myGps = null;
@@ -978,6 +1032,84 @@ async function loadSecurityInfo() {
     },
     { enableHighAccuracy:true, timeout:8000 }
   );
+}
+
+// ── 교대 선택 ──
+let selectedShift = null; // 사용자가 선택한 교대
+
+window.selectShift = (shiftName) => {
+  // 모든 버튼 초기화
+  ['sbtn-day','sbtn-eve','sbtn-ngt','sbtn-off'].forEach(id=>{
+    const btn=$(id);
+    if(btn){ btn.className='shift-btn'; }
+  });
+
+  if(shiftName==='데이'){
+    $('sbtn-day').classList.add('active-day');
+    selectedShift = SHIFTS[0];
+  } else if(shiftName==='이브닝'){
+    $('sbtn-eve').classList.add('active-eve');
+    selectedShift = SHIFTS[1];
+  } else if(shiftName==='나이트'){
+    $('sbtn-ngt').classList.add('active-ngt');
+    selectedShift = SHIFTS[2];
+  } else {
+    $('sbtn-off').classList.add('active-off');
+    selectedShift = { name:'오프', start:'', end:'', startM:0, window:[0,1440] };
+  }
+  $('shift-auto-notice').textContent = `✅ ${shiftName} 선택됨`;
+  $('shift-auto-notice').style.color = 'var(--primary)';
+};
+
+function autoDetectAndSelectShift() {
+  if(settings.mode !== 'shift') return;
+  const now = new Date();
+  const m = now.getHours()*60 + now.getMinutes();
+  const hhmm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+  // 교대 시작 1시간 전부터 해당 교대 자동선택
+  // 데이:   06:00(360) ~ 13:59(839)
+  // 이브닝: 13:00(780) ~ 19:59(1199)  ← 데이와 13:00~13:59 겹침 → 이브닝 우선
+  // 나이트: 20:00(1200) ~ 23:59(1439) / 00:00~08:30
+  // 이전 교대 유지 구간:
+  //   08:31~12:59 → 데이 (데이 근무 중 or 데이 끝나고 이브닝 전)
+  //   → 실제로는 데이 끝(15시) 이후부터 이브닝 전(13시)까지 공백 없음
+
+  let autoName = '';
+  let notice = '';
+  let noticeColor = 'var(--gray-400)';
+
+  if(m >= 20*60){
+    // 20:00 이후 → 나이트
+    autoName = '나이트';
+    notice = m >= 21*60
+      ? `⏰ ${hhmm} → 나이트 근무 시간`
+      : `⏰ ${hhmm} → 나이트 시작 1시간 전 자동선택`;
+  } else if(m >= 13*60){
+    // 13:00 이후 → 이브닝
+    autoName = '이브닝';
+    notice = m >= 14*60
+      ? `⏰ ${hhmm} → 이브닝 근무 시간`
+      : `⏰ ${hhmm} → 이브닝 시작 1시간 전 자동선택`;
+  } else if(m >= 6*60){
+    // 06:00 이후 → 데이
+    autoName = '데이';
+    notice = m >= 7*60
+      ? `⏰ ${hhmm} → 데이 근무 시간`
+      : `⏰ ${hhmm} → 데이 시작 1시간 전 자동선택`;
+  } else if(m <= 8*60+30){
+    // 00:00~08:30 → 나이트 연장 (전날 나이트)
+    autoName = '나이트';
+    notice = `⏰ ${hhmm} → 나이트 연장 근무 시간`;
+  } else {
+    // 08:31~05:59 구간 없음 (수학적으로 불가)
+    autoName = '데이';
+    notice = `⏰ ${hhmm} → 데이 근무로 자동선택`;
+  }
+
+  selectShift(autoName);
+  const noticeEl=$('shift-auto-notice');
+  if(noticeEl){ noticeEl.textContent=notice; noticeEl.style.color=noticeColor; }
 }
 
 // 3교대 배너 업데이트
@@ -1120,6 +1252,9 @@ window.cancelClockIn = async () => {
     $('btn-cancel-out').style.display='none';
     $('total-box').style.display='none';
     toast('출근 기록이 취소됐습니다','success');
+    // 교대 선택 다시 표시
+    const sw2=$('shift-select-wrap');
+    if(sw2 && settings.mode==='shift'){ sw2.style.display='block'; autoDetectAndSelectShift(); }
     await loadWeek();
   } catch(e){ toast('오류: '+e.message,'error'); }
 };
@@ -1173,8 +1308,9 @@ window.clockIn = async () => {
   // 3교대 모드 처리
   let shiftDate = today(), shiftName = '', shiftStart = '', shiftEnd = '', lateMin = 0;
   if(settings.mode === 'shift'){
-    const shift = detectShift(now);
-    if(shift){
+    // 사용자가 선택한 교대 우선, 없으면 자동 감지
+    const shift = selectedShift || detectShift(now);
+    if(shift && shift.name !== '오프'){
       const info = getShiftInfo(shift, now);
       shiftDate  = info.shiftDate;
       lateMin    = info.lateMin;
@@ -1182,6 +1318,8 @@ window.clockIn = async () => {
       shiftStart = shift.start;
       shiftEnd   = shift.end;
     }
+    // 오프 또는 시간 외 → 그냥 현재 시간으로 기록 (shiftName 오프)
+    if(selectedShift?.name === '오프') shiftName = '오프';
     // shift 없어도 (오프, 시간 외) 그냥 현재 시간으로 기록
   } else {
     const inM = meData.defaultIn||settings.defaultIn||'09:00';
@@ -1210,6 +1348,8 @@ window.clockIn = async () => {
     bi.textContent='출근 완료 ✓';
     $('btn-out').className='btn-clock btn-cout'; $('btn-out').textContent='퇴근';
     const bciShow=$('btn-cancel-in'); if(bciShow) bciShow.style.display='block';
+    // 출근 후 교대 선택 숨기기
+    const sw=$('shift-select-wrap'); if(sw) sw.style.display='none';
     toast('출근 완료! ✓','success');
     const timeStr2 = fmt(now);
     const shiftLabel2 = shiftName||'일반';
@@ -1973,12 +2113,13 @@ window.loadWeekly = async () => {
   aSnap.forEach(d=>{ const r=d.data(); aMap[`${r.uid}_${r.date}`]=r; });
 
   // 통계
-  let totalWork=0,totalLate=0,totalAbsent=0;
-  users.forEach(u=>{ dates.forEach(dt=>{ const a=aMap[`${u.id}_${dt}`]; if(!a) totalAbsent++; else { if(a.lateMin>0) totalLate++; if(a.clockIn&&a.clockOut) totalWork+=Math.round((a.clockOut.toDate()-a.clockIn.toDate())/60000); } }); });
+  let totalWork=0,totalLate=0,totalAbsent=0,totalPresent=0;
+  users.forEach(u=>{ dates.forEach(dt=>{ const a=aMap[`${u.id}_${dt}`]; if(a){ totalPresent++; if(a.lateMin>0) totalLate++; if(a.clockIn&&a.clockOut) totalWork+=Math.round((a.clockOut.toDate()-a.clockIn.toDate())/60000); } }); });
+  totalAbsent=0; // 오프 개념 없으므로 미출근 제거
   $('weekly-stats').innerHTML=`
     <div class="stat-box"><div class="stat-num" style="color:var(--gray-700)">${users.length}</div><div class="stat-lbl">직원</div></div>
+    <div class="stat-box"><div class="stat-num" style="color:var(--success)">${totalPresent}</div><div class="stat-lbl">총 출근</div></div>
     <div class="stat-box"><div class="stat-num" style="color:var(--warning)">${totalLate}</div><div class="stat-lbl">지각</div></div>
-    <div class="stat-box"><div class="stat-num" style="color:var(--danger)">${totalAbsent}</div><div class="stat-lbl">미출근</div></div>
     <div class="stat-box"><div class="stat-num" style="color:var(--primary);font-size:18px;">${Math.floor(totalWork/60)}h</div><div class="stat-lbl">총 근무</div></div>`;
 
   // 헤더 (이름 | 월 화 수 목 금 토 일 | 합계)
@@ -2032,58 +2173,85 @@ async function loadMemberSelectList(){
 }
 
 window.loadMemberReport = async () => {
-  const uid=$('mr-uid').value; if(!uid) return;
-  const period=$('mr-period').value;
-  const m=$('mr-month').value||nowMonth();
-  if(!$('mr-month').value) $('mr-month').value=m;
+  const uid = $('mr-uid').value;
+  if(!uid){ $('mr-tbody').innerHTML='<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--gray-400);">직원을 선택하세요</td></tr>'; return; }
+  const period = $('mr-period').value;
+  const m = $('mr-month').value || nowMonth();
+  if(!$('mr-month').value) $('mr-month').value = m;
+  const [y,mo] = m.split('-');
 
   let startDate='', endDate='';
   if(period==='month'){
-    const [y,mo]=m.split('-');
     startDate=`${y}-${mo}-01`; endDate=`${y}-${mo}-31`;
   } else if(period==='week'){
-    const now2=new Date(); const dow2=now2.getDay();
-    const mon2=new Date(now2); mon2.setDate(now2.getDate()-(dow2===0?6:dow2-1)); mon2.setHours(0,0,0,0);
-    startDate=mon2.toISOString().slice(0,10);
-    const sun2=new Date(mon2); sun2.setDate(mon2.getDate()+6);
-    endDate=sun2.toISOString().slice(0,10);
+    const sun=getWeekSunday(new Date());
+    startDate=sun.toISOString().slice(0,10);
+    const sat=new Date(sun); sat.setDate(sun.getDate()+6);
+    endDate=sat.toISOString().slice(0,10);
   } else {
-    // 전체: 최근 1년
-    const now3=new Date(); const yr=new Date(now3); yr.setFullYear(yr.getFullYear()-1);
-    startDate=yr.toISOString().slice(0,10); endDate=now3.toISOString().slice(0,10);
+    const yr=new Date(); yr.setFullYear(yr.getFullYear()-1);
+    startDate=yr.toISOString().slice(0,10);
+    endDate=new Date().toISOString().slice(0,10);
   }
 
-  const snap=await getDocs(query(collection(db,'attendance_simple'),
-    where('uid','==',uid),where('date','>=',startDate),where('date','<=',endDate)));
+  $('mr-tbody').innerHTML='<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--gray-400);">불러오는 중...</td></tr>';
+  $('mr-summary').innerHTML='';
 
-  // JS에서 날짜 내림차순 정렬
-  const mrDocs=[]; snap.forEach(d=>mrDocs.push({id:d.id,...d.data()}));
-  mrDocs.sort((a,b)=>b.date.localeCompare(a.date));
-  let totalMin=0,workDays=0,lateCnt=0,earlyC=0,otH=0;
-  let html='';
-  mrDocs.forEach(r=>{
-    const inT=r.clockIn?fmt(r.clockIn.toDate()):'—';
-    const outT=r.clockOut?fmt(r.clockOut.toDate()):'—';
-    let mins=0; if(r.clockIn&&r.clockOut){ mins=Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000); totalMin+=mins; }
-    workDays++; if(r.lateMin>0) lateCnt++; if(r.earlyMin>0) earlyC++; otH+=r.otMin||0;
-    const dow3=new Date(r.date+'T00:00:00').getDay();
-    const badge=r.lateMin>0?`<span class="badge b-late">지각 +${r.lateMin}분</span>`:r.otMin>0?`<span class="badge b-ot">연장 +${r.otMin}분</span>`:r.earlyMin>0?`<span class="badge b-early">조퇴 -${r.earlyMin}분</span>`:`<span class="badge b-ok">정상</span>`;
-    const gpsStr=r.clockInGps?`<a href="https://maps.google.com/?q=${r.clockInGps.lat},${r.clockInGps.lng}" target="_blank" style="font-size:10px;color:var(--primary);">📍지도</a>`:'—';
-    html+=`<tr><td>${r.date.slice(5)} ${DAYS[dow3]}</td><td>${r.shiftName||'—'}</td><td>${inT}</td><td>${outT}</td>
-      <td>${r.lateMin>0?`+${r.lateMin}분`:'—'}</td>
-      <td>${r.earlyMin>0?`-${r.earlyMin}분`:'—'}</td>
-      <td>${r.otMin>0?`+${r.otMin}분`:'—'}</td>
-      <td>${mins?`${Math.floor(mins/60)}h${mins%60}m`:'—'}</td>
-      <td style="font-size:11px;">${r.clockInIp||'—'}</td>
-      <td>${gpsStr}</td></tr>`;
-  });
+  try {
+    const snap = await getDocs(query(
+      collection(db,'attendance_simple'),
+      where('uid','==',uid),
+      where('date','>=',startDate),
+      where('date','<=',endDate)
+    ));
 
-  $('mr-summary').innerHTML=`
-    <div class="stat-box"><div class="stat-num" style="color:var(--primary);font-size:20px;">${workDays}</div><div class="stat-lbl">근무일</div></div>
-    <div class="stat-box"><div class="stat-num" style="color:var(--warning);font-size:20px;">${lateCnt}</div><div class="stat-lbl">지각</div></div>
-    <div class="stat-box"><div class="stat-num" style="color:var(--danger);font-size:20px;">${earlyC}</div><div class="stat-lbl">조퇴</div></div>
-    <div class="stat-box"><div class="stat-num" style="color:var(--success);font-size:16px;">${Math.floor(totalMin/60)}h</div><div class="stat-lbl">총 근무</div></div>`;
-  $('mr-tbody').innerHTML=html||'<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--gray-400)">기록이 없습니다</td></tr>';
+    if(snap.empty){
+      $('mr-tbody').innerHTML='<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--gray-400);">기록이 없습니다</td></tr>';
+      return;
+    }
+
+    const docs=[]; snap.forEach(d=>docs.push({id:d.id,...d.data()}));
+    docs.sort((a,b)=>b.date.localeCompare(a.date));
+
+    let totalMin=0,workDays=0,lateCnt=0,earlyC=0,otH=0;
+    let html='';
+    docs.forEach(r=>{
+      const inT  = r.clockIn  ? fmt(r.clockIn.toDate())  : '—';
+      const outT = r.clockOut ? fmt(r.clockOut.toDate()) : '—';
+      let mins=0;
+      if(r.clockIn&&r.clockOut){ mins=Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000); totalMin+=mins; }
+      workDays++; if(r.lateMin>0) lateCnt++; if(r.earlyMin>0) earlyC++; otH+=r.otMin||0;
+      const dow3 = new Date(r.date+'T00:00:00').getDay();
+      const dowCls = dow3===0?'color:var(--danger)':dow3===6?'color:#3b82f6':'';
+      const badge = r.lateMin>0?`<span class="badge b-late">지각 +${r.lateMin}분</span>`
+        :r.otMin>0?`<span class="badge b-ot">연장 +${r.otMin}분</span>`
+        :r.earlyMin>0?`<span class="badge b-early">조퇴 -${r.earlyMin}분</span>`
+        :`<span class="badge b-ok">정상</span>`;
+      const shiftIcon = r.shiftName==='데이'?'🌅':r.shiftName==='이브닝'?'🌆':r.shiftName==='나이트'?'🌙':'';
+      const gpsLink = r.clockInGps?`<a href="https://maps.google.com/?q=${r.clockInGps.lat},${r.clockInGps.lng}" target="_blank" style="color:var(--primary);font-size:10px;">📍</a>`:'';
+      html+=`<tr>
+        <td style="${dowCls};font-weight:600;">${r.date.slice(5)} ${DAYS[dow3]}</td>
+        <td>${shiftIcon} ${r.shiftName||'—'}</td>
+        <td>${inT}</td><td>${outT}</td>
+        <td>${r.lateMin>0?`+${r.lateMin}분`:'—'}</td>
+        <td>${r.earlyMin>0?`-${r.earlyMin}분`:'—'}</td>
+        <td>${r.otMin>0?`+${r.otMin}분`:'—'}</td>
+        <td>${mins?`${Math.floor(mins/60)}h${mins%60}m`:'—'}</td>
+        <td style="font-size:10px;">${r.clockInIp||'—'}</td>
+        <td>${gpsLink}</td>
+      </tr>`;
+    });
+
+    $('mr-summary').innerHTML=`
+      <div class="stat-box"><div class="stat-num" style="color:var(--primary);font-size:20px;">${workDays}</div><div class="stat-lbl">근무일</div></div>
+      <div class="stat-box"><div class="stat-num" style="color:var(--warning);font-size:20px;">${lateCnt}</div><div class="stat-lbl">지각</div></div>
+      <div class="stat-box"><div class="stat-num" style="color:var(--danger);font-size:20px;">${earlyC}</div><div class="stat-lbl">조퇴</div></div>
+      <div class="stat-box"><div class="stat-num" style="color:var(--success);font-size:16px;">${Math.floor(totalMin/60)}h</div><div class="stat-lbl">총 근무</div></div>`;
+    $('mr-tbody').innerHTML = html;
+  } catch(e){
+    $('mr-tbody').innerHTML=`<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--danger);">오류: ${e.message}</td></tr>`;
+    console.error(e);
+  }
 };
 
 window.exportMemberCSV = async () => {
@@ -2255,28 +2423,28 @@ async function renderCalendar() {
 
     // 데이
     if(groups['데이'].length > 0){
-      const names = groups['데이'].map(r=>`${r.name} ${r.clockIn?fmt(r.clockIn.toDate()):'?'}→${r.clockOut?fmt(r.clockOut.toDate()):'재직'}`).join(' / ');
+      const names = groups['데이'].map(r=>`${r.name} ${r.clockIn?fmt(r.clockIn.toDate()):'?'}→${r.clockOut?fmt(r.clockOut.toDate()):'재직'}`).join('<br>');
       const label = groups['데이'].length<=2 ? groups['데이'].map(r=>r.name).join(', ') : `${groups['데이'][0].name} 외 ${groups['데이'].length-1}명`;
       html += `<div class="cal-chip day-chip">🌅 ${label}<div class="cal-tooltip">🌅 데이 (${groups['데이'].length}명)
 ${names}</div></div>`;
     }
     // 이브닝
     if(groups['이브닝'].length > 0){
-      const names = groups['이브닝'].map(r=>`${r.name} ${r.clockIn?fmt(r.clockIn.toDate()):'?'}→${r.clockOut?fmt(r.clockOut.toDate()):'재직'}`).join(' / ');
+      const names = groups['이브닝'].map(r=>`${r.name} ${r.clockIn?fmt(r.clockIn.toDate()):'?'}→${r.clockOut?fmt(r.clockOut.toDate()):'재직'}`).join('<br>');
       const label = groups['이브닝'].length<=2 ? groups['이브닝'].map(r=>r.name).join(', ') : `${groups['이브닝'][0].name} 외 ${groups['이브닝'].length-1}명`;
       html += `<div class="cal-chip eve-chip">🌆 ${label}<div class="cal-tooltip">🌆 이브닝 (${groups['이브닝'].length}명)
 ${names}</div></div>`;
     }
     // 나이트
     if(groups['나이트'].length > 0){
-      const names = groups['나이트'].map(r=>`${r.name} ${r.clockIn?fmt(r.clockIn.toDate()):'?'}→${r.clockOut?fmt(r.clockOut.toDate()):'재직'}`).join(' / ');
+      const names = groups['나이트'].map(r=>`${r.name} ${r.clockIn?fmt(r.clockIn.toDate()):'?'}→${r.clockOut?fmt(r.clockOut.toDate()):'재직'}`).join('<br>');
       const label = groups['나이트'].length<=2 ? groups['나이트'].map(r=>r.name).join(', ') : `${groups['나이트'][0].name} 외 ${groups['나이트'].length-1}명`;
       html += `<div class="cal-chip ngt-chip">🌙 ${label}<div class="cal-tooltip">🌙 나이트 (${groups['나이트'].length}명)
 ${names}</div></div>`;
     }
     // 기타
     if(groups['기타'].length > 0){
-      const names = groups['기타'].map(r=>`${r.name} ${r.clockIn?fmt(r.clockIn.toDate()):'?'}→${r.clockOut?fmt(r.clockOut.toDate()):'재직'}`).join(' / ');
+      const names = groups['기타'].map(r=>`${r.name} ${r.clockIn?fmt(r.clockIn.toDate()):'?'}→${r.clockOut?fmt(r.clockOut.toDate()):'재직'}`).join('<br>');
       const label = groups['기타'].length<=2 ? groups['기타'].map(r=>r.name).join(', ') : `${groups['기타'][0].name} 외 ${groups['기타'].length-1}명`;
       html += `<div class="cal-chip etc-chip">📋 ${label}<div class="cal-tooltip">📋 기타 (${groups['기타'].length}명)
 ${names}</div></div>`;
@@ -2305,6 +2473,14 @@ window.loadDevices     = loadDevices;
 window.loadSettings2   = loadSettings2;
 window.loadCancelLogs  = loadCancelLogs;
 window.switchMonthView = switchMonthView;
+window.renderCalendar  = renderCalendar;
+// export 함수는 window.xxx = async 로 이미 선언됨 - 추가 alias
+window.exportTodayCSV  = exportTodayCSV;
+window.exportMonthCSV  = exportMonthCSV;
+window.exportDailyCSV  = exportDailyCSV;
+window.exportWeeklyCSV = exportWeeklyCSV;
+window.exportMemberCSV = exportMemberCSV;
+window.exportMyCSV     = exportMyCSV;
 
 // 초대 링크
 window.copyInvite = () => {
