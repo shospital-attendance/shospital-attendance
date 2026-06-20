@@ -1,0 +1,1676 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="에스한방 출퇴근">
+<meta name="theme-color" content="#1a6b4a">
+<title>에스한방병원 출퇴근</title>
+<style>
+:root {
+  --primary:#1a6b4a; --primary-dark:#0f4c2e; --primary-light:#e8f5ee;
+  --danger:#e24b4a; --danger-light:#fef2f2;
+  --warning:#f59e0b; --warning-light:#fffbeb;
+  --success:#10b981; --success-light:#ecfdf5;
+  --gray-50:#f9fafb; --gray-100:#f3f4f6; --gray-200:#e5e7eb;
+  --gray-400:#9ca3af; --gray-500:#6b7280; --gray-700:#374151; --gray-900:#111827;
+  --radius:14px; --shadow:0 2px 10px rgba(0,0,0,0.08);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;background:var(--gray-100);color:var(--gray-900);min-height:100vh;}
+
+/* ── 공통 ── */
+.page{display:none;}
+.page.active{display:flex;flex-direction:column;}
+.spinner{width:32px;height:32px;border:3px solid var(--gray-200);border-top-color:var(--primary);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.btn{padding:14px;border:none;border-radius:var(--radius);font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;width:100%;transition:opacity .15s,transform .1s;}
+.btn:active{transform:scale(0.97);opacity:.9;}
+.btn-primary{background:var(--primary);color:#fff;}
+.btn-gray{background:var(--gray-100);color:var(--gray-500);border:1px solid var(--gray-200);}
+.btn-sm{padding:6px 14px;border:1px solid var(--gray-200);border-radius:8px;background:#fff;font-size:12px;color:var(--gray-600);cursor:pointer;font-family:inherit;}
+.btn-sm:active{background:var(--gray-100);}
+.btn-approve{padding:6px 14px;border:1px solid #bbf7d0;border-radius:8px;background:var(--success-light);font-size:12px;color:#065f46;cursor:pointer;font-family:inherit;}
+.btn-reject{padding:6px 14px;border:1px solid #fecaca;border-radius:8px;background:var(--danger-light);font-size:12px;color:var(--danger);cursor:pointer;font-family:inherit;}
+.card{background:#fff;border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);}
+.form-g{margin-bottom:12px;}
+.form-g label{display:block;font-size:12px;font-weight:600;color:var(--gray-500);margin-bottom:5px;}
+.form-g input,.form-g select{width:100%;padding:11px 14px;border:1.5px solid var(--gray-200);border-radius:10px;font-size:16px;font-family:inherit;color:var(--gray-900);}
+.form-g input:focus,.form-g select:focus{outline:none;border-color:var(--primary);}
+.badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;}
+.b-ok{background:var(--success-light);color:#065f46;}
+.b-late{background:var(--warning-light);color:#92400e;}
+.b-ot{background:#eff6ff;color:#1e40af;}
+.b-early{background:var(--danger-light);color:#991b1b;}
+.b-none{background:var(--gray-100);color:var(--gray-400);}
+.b-pending{background:var(--warning-light);color:#92400e;}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 22px;border-radius:20px;font-size:13px;font-weight:500;color:#fff;opacity:0;transition:opacity .3s;z-index:9999;pointer-events:none;white-space:nowrap;max-width:90vw;}
+.toast.show{opacity:1;}
+
+/* ── 로딩 ── */
+#loading{position:fixed;inset:0;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:9998;}
+#loading .logo{font-size:48px;}
+#loading p{font-size:13px;color:var(--gray-400);}
+
+/* ── 로그인 ── */
+#page-login{min-height:100vh;align-items:center;justify-content:center;background:linear-gradient(160deg,#0a3320,var(--primary));}
+.login-wrap{text-align:center;padding:24px;width:100%;max-width:360px;}
+.login-logo{font-size:64px;margin-bottom:16px;}
+.login-title{color:#fff;font-size:26px;font-weight:700;margin-bottom:4px;}
+.login-sub{color:rgba(255,255,255,.65);font-size:14px;margin-bottom:32px;}
+.login-card{background:#fff;border-radius:20px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.25);}
+.login-card p{font-size:13px;color:var(--gray-500);text-align:center;line-height:1.7;margin-bottom:18px;}
+.btn-google{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:14px;border:1.5px solid var(--gray-200);border-radius:var(--radius);background:#fff;font-size:14px;font-weight:600;color:var(--gray-700);cursor:pointer;}
+.btn-google:active{background:var(--gray-100);}
+
+/* ── 이름 입력 ── */
+#page-setname{min-height:100vh;align-items:center;justify-content:center;background:linear-gradient(160deg,#0a3320,var(--primary));padding:24px;}
+.setname-card{background:#fff;border-radius:20px;padding:28px 24px;width:100%;max-width:340px;box-shadow:0 20px 60px rgba(0,0,0,.25);text-align:center;}
+.setname-icon{font-size:48px;margin-bottom:12px;}
+
+/* ── 대기/기기 ── */
+#page-pending,#page-device{min-height:100vh;align-items:center;justify-content:center;background:var(--gray-100);padding:24px;}
+.wait-card{background:#fff;border-radius:20px;padding:32px 24px;text-align:center;max-width:320px;width:100%;box-shadow:var(--shadow);}
+.wait-icon{font-size:52px;margin-bottom:14px;}
+.wait-title{font-size:18px;font-weight:700;margin-bottom:8px;}
+.wait-desc{font-size:13px;color:var(--gray-500);line-height:1.7;}
+
+/* ── 직원 앱 ── */
+#page-emp{min-height:100vh;background:var(--gray-100);}
+.emp-header{background:var(--primary);padding:16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;}
+.h-left{display:flex;align-items:center;gap:10px;}
+.h-avatar{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;font-weight:700;overflow:hidden;flex-shrink:0;}
+.h-avatar img{width:100%;height:100%;object-fit:cover;}
+.h-name{color:#fff;font-size:15px;font-weight:700;}
+.h-dept{color:rgba(255,255,255,.7);font-size:12px;margin-top:1px;}
+.emp-body{padding:14px;display:flex;flex-direction:column;gap:12px;}
+
+/* 시계 */
+.clock-card{background:var(--primary-dark);border-radius:var(--radius);padding:22px;text-align:center;}
+.clock-time{font-size:52px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-2px;}
+.clock-date{font-size:13px;color:rgba(255,255,255,.65);margin-top:6px;}
+
+/* 네트워크 */
+.net-banner{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--radius);font-size:13px;font-weight:500;}
+.net-ok{background:var(--success-light);color:#065f46;}
+.net-fail{background:var(--danger-light);color:#991b1b;}
+.net-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;animation:pulse2 1.5s ease infinite;}
+.net-ok .net-dot{background:var(--success);}
+.net-fail .net-dot{background:var(--danger);}
+@keyframes pulse2{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* 출퇴근 */
+.att-times{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.att-box{text-align:center;padding:14px 8px;background:var(--gray-50);border-radius:10px;}
+.att-label{font-size:11px;color:var(--gray-400);margin-bottom:4px;}
+.att-val{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--gray-900);}
+.att-val.empty{color:var(--gray-200);}
+.att-status-tag{margin-top:4px;height:18px;}
+.clock-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.btn-clock{padding:20px 8px;border:none;border-radius:var(--radius);font-size:17px;font-weight:700;cursor:pointer;transition:transform .1s;}
+.btn-clock:active{transform:scale(0.95);}
+.btn-cin{background:var(--primary);color:#fff;}
+.btn-cout{background:var(--danger);color:#fff;}
+.btn-cdone{background:var(--gray-100);color:var(--gray-400);cursor:not-allowed;}
+.btn-coff{background:var(--gray-100);color:var(--gray-300);cursor:not-allowed;border:1px solid var(--gray-200);}
+.total-box{margin-top:12px;padding:10px;background:var(--primary-light);border-radius:10px;text-align:center;font-size:14px;font-weight:600;color:var(--primary);display:none;}
+
+/* 이번주 */
+.week-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--gray-100);}
+.week-row:last-child{border-bottom:none;}
+.week-day{font-size:12px;color:var(--gray-500);width:38px;flex-shrink:0;text-align:center;}
+.week-day.today-d{color:var(--primary);font-weight:700;}
+.week-day.sun{color:var(--danger);}
+.week-day.sat{color:#3b82f6;}
+.week-times{font-size:13px;color:var(--gray-700);flex:1;font-variant-numeric:tabular-nums;}
+
+/* ── 관리자 ── */
+#page-admin{min-height:100vh;background:var(--gray-100);}
+.admin-header{background:#fff;border-bottom:1px solid var(--gray-200);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;}
+.admin-header h1{font-size:15px;font-weight:700;color:var(--primary);}
+.admin-tabs{background:#fff;border-bottom:1px solid var(--gray-200);display:flex;overflow-x:auto;}
+.admin-tabs::-webkit-scrollbar{display:none;}
+.a-tab{padding:12px 16px;font-size:13px;font-weight:500;color:var(--gray-400);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;flex-shrink:0;}
+.a-tab.on{color:var(--primary);border-bottom-color:var(--primary);}
+.admin-body{padding:14px;}
+.a-sec{display:none;}
+.a-sec.on{display:block;}
+
+/* 통계 */
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;}
+.stat-box{background:#fff;border-radius:var(--radius);padding:12px 8px;text-align:center;box-shadow:var(--shadow);}
+.stat-num{font-size:26px;font-weight:700;}
+.stat-lbl{font-size:10px;color:var(--gray-400);margin-top:2px;}
+
+/* 테이블 */
+.tbl-wrap{background:#fff;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:480px;}
+th{padding:10px 12px;text-align:left;color:var(--gray-400);font-size:11px;font-weight:600;background:var(--gray-50);border-bottom:1px solid var(--gray-200);white-space:nowrap;}
+td{padding:10px 12px;border-bottom:1px solid var(--gray-100);color:var(--gray-700);white-space:nowrap;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:var(--gray-50);}
+
+/* 모달 */
+.modal-back{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:flex-end;justify-content:center;}
+.modal-back.open{display:flex;}
+.modal{background:#fff;border-radius:20px 20px 0 0;padding:24px;width:100%;max-width:480px;animation:up .25s ease;}
+@keyframes up{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal h3{font-size:15px;font-weight:700;margin-bottom:16px;}
+.modal-footer{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px;}
+
+/* 직원 카드 */
+.member-card{background:#fff;border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.mc-info{flex:1;min-width:0;}
+.mc-name{font-size:14px;font-weight:600;}
+.mc-sub{font-size:12px;color:var(--gray-400);margin-top:2px;}
+.mc-actions{display:flex;gap:6px;flex-shrink:0;}
+</style>
+</head>
+<body>
+
+<!-- 로딩 -->
+<div id="loading">
+  <div class="logo">🏥</div>
+  <div class="spinner"></div>
+  <p>에스한방병원</p>
+</div>
+
+<!-- 로그인 -->
+<div id="page-login" class="page">
+  <div class="login-wrap">
+    <div class="login-logo">🏥</div>
+    <div class="login-title">에스한방병원</div>
+    <div class="login-sub">출퇴근 관리 시스템</div>
+    <div class="login-card">
+      <p>구글 계정으로 로그인하세요.<br>최초 로그인 후 관리자 승인이 필요합니다.<br><br>🔒 병원 WiFi에서만 출퇴근 가능합니다<br>📱 본인 기기로만 사용 가능합니다</p>
+      <button class="btn-google" onclick="doLogin()">
+        <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        Google 계정으로 로그인
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- 이름 입력 -->
+<div id="page-setname" class="page">
+  <div class="setname-card">
+    <div class="setname-icon">👋</div>
+    <div style="font-size:18px;font-weight:700;margin-bottom:6px;">이름을 입력해주세요</div>
+    <div style="font-size:13px;color:var(--gray-400);margin-bottom:20px;">출퇴근 기록과 보고서에 사용됩니다</div>
+    <div class="form-g">
+      <label>실명 (한글)</label>
+      <input type="text" id="input-myname" placeholder="예: 김간호" style="text-align:center;font-size:20px;">
+    </div>
+    <button class="btn btn-primary" onclick="saveMyName()">저장하고 시작</button>
+  </div>
+</div>
+
+<!-- 승인 대기 -->
+<div id="page-pending" class="page">
+  <div class="wait-card">
+    <div class="wait-icon">⏳</div>
+    <div class="wait-title">승인 대기 중</div>
+    <div class="wait-desc" id="pending-msg"></div>
+    <button class="btn btn-gray" style="margin-top:20px;" onclick="doSignOut()">로그아웃</button>
+  </div>
+</div>
+
+<!-- 기기 변경 요청 -->
+<div id="page-device" class="page">
+  <div class="wait-card">
+    <div class="wait-icon">📱</div>
+    <div class="wait-title">다른 기기로 접속됐어요</div>
+    <div class="wait-desc" style="margin-bottom:20px;">등록된 기기와 다른 기기입니다.<br>기기 변경을 요청하시면<br>관리자 승인 후 사용 가능합니다.</div>
+    <button class="btn btn-primary" style="margin-bottom:8px;" onclick="requestDevice()">기기 변경 요청</button>
+    <button class="btn btn-gray" onclick="doSignOut()">로그아웃</button>
+  </div>
+</div>
+
+<!-- 직원 앱 -->
+<div id="page-emp" class="page">
+  <div class="emp-header">
+    <div class="h-left">
+      <div class="h-avatar" id="emp-avatar"></div>
+      <div>
+        <div class="h-name" id="emp-name"></div>
+        <div class="h-dept" id="emp-dept"></div>
+      </div>
+    </div>
+    <button onclick="doSignOut()" style="background:rgba(255,255,255,.15);border:none;color:#fff;padding:7px 13px;border-radius:8px;font-size:12px;cursor:pointer;">로그아웃</button>
+  </div>
+  <div class="emp-body">
+    <!-- 시계 -->
+    <div class="clock-card">
+      <div class="clock-time" id="live-clock">00:00:00</div>
+      <div class="clock-date" id="live-date"></div>
+    </div>
+    <!-- 네트워크 -->
+    <div class="net-banner net-fail" id="net-banner">
+      <div class="net-dot"></div>
+      <span id="net-text">네트워크 확인 중...</span>
+    </div>
+    <!-- 출퇴근 -->
+    <div class="card">
+      <!-- 3교대 감지 배너 -->
+      <div id="shift-detect-banner" style="display:none;background:var(--primary-light);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--primary);font-weight:600;text-align:center;"></div>
+      <div class="att-times">
+        <div class="att-box">
+          <div class="att-label">출근</div>
+          <div class="att-val empty" id="t-in">--:--</div>
+          <div class="att-status-tag" id="s-in"></div>
+        </div>
+        <div class="att-box">
+          <div class="att-label">퇴근</div>
+          <div class="att-val empty" id="t-out">--:--</div>
+          <div class="att-status-tag" id="s-out"></div>
+        </div>
+      </div>
+      <div class="clock-btns">
+        <button class="btn-clock btn-coff" id="btn-in" onclick="clockIn()">출근</button>
+        <button class="btn-clock btn-coff" id="btn-out" onclick="clockOut()">퇴근</button>
+      </div>
+      <div class="total-box" id="total-box"></div>
+    </div>
+    <!-- 이번주 -->
+    <div class="card">
+      <div style="font-size:13px;font-weight:600;color:var(--gray-500);margin-bottom:10px;">이번 주 기록</div>
+      <div id="week-list"><div style="text-align:center;color:var(--gray-400);font-size:13px;padding:8px;">불러오는 중...</div></div>
+    </div>
+    <!-- 보안 정보 카드 -->
+    <div class="card" id="security-card">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <span style="font-size:18px;">🔒</span>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--gray-700);">출퇴근 보안 정보</div>
+          <div style="font-size:11px;color:var(--gray-400);">아래 정보가 기록에 함께 저장됩니다</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div style="background:var(--gray-50);border-radius:8px;padding:10px 12px;">
+          <div style="font-size:10px;font-weight:600;color:var(--gray-400);margin-bottom:3px;">🌐 현재 IP 주소</div>
+          <div style="font-size:13px;font-weight:600;color:var(--gray-700);" id="my-ip">확인 중...</div>
+        </div>
+        <div style="background:var(--gray-50);border-radius:8px;padding:10px 12px;">
+          <div style="font-size:10px;font-weight:600;color:var(--gray-400);margin-bottom:3px;">📱 기기 ID</div>
+          <div style="font-size:11px;color:var(--gray-700);word-break:break-all;" id="my-device-id">-</div>
+        </div>
+        <div style="background:var(--gray-50);border-radius:8px;padding:10px 12px;">
+          <div style="font-size:10px;font-weight:600;color:var(--gray-400);margin-bottom:3px;">📍 위치 정보 (GPS)</div>
+          <div style="font-size:12px;color:var(--gray-700);" id="my-gps">위치 확인 중...</div>
+        </div>
+      </div>
+      <div style="margin-top:10px;padding:8px 10px;background:#fef9c3;border-radius:8px;font-size:11px;color:#713f12;line-height:1.6;">
+        ⚠️ 출퇴근 시 <b>IP 주소, 기기 고유번호, GPS 위치</b>가 자동으로 기록됩니다.<br>
+        타인의 기기나 원격 접속을 통한 대리 출퇴근은 즉시 감지됩니다.
+      </div>
+    </div>
+
+    <!-- 과거 기록 -->
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="font-size:13px;font-weight:600;color:var(--gray-500);">과거 기록 조회</div>
+        <button class="btn-sm" onclick="exportMyCSV()">📊 엑셀</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:10px;">
+        <input type="month" id="my-month" style="flex:1;padding:8px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;" onchange="loadMyHistory()">
+      </div>
+      <div id="my-history"><div style="text-align:center;color:var(--gray-400);font-size:13px;padding:8px;">월을 선택하세요</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 관리자 -->
+<div id="page-admin" class="page">
+  <div class="admin-header">
+    <h1>🏥 에스한방 출퇴근 관리</h1>
+    <button class="btn-sm" onclick="doSignOut()">로그아웃</button>
+  </div>
+  <div class="admin-tabs">
+    <div class="a-tab on" onclick="switchTab('today',this)">오늘 현황</div>
+    <div class="a-tab" onclick="switchTab('monthly',this)">월별 보고서</div>
+    <div class="a-tab" onclick="switchTab('daily',this)">일별 조회</div>
+    <div class="a-tab" onclick="switchTab('weekly',this)">주별 조회</div>
+    <div class="a-tab" onclick="switchTab('member-report',this)">직원별 조회</div>
+    <div class="a-tab" onclick="switchTab('members',this)">직원 관리</div>
+    <div class="a-tab" onclick="switchTab('devices',this)">기기 승인</div>
+    <div class="a-tab" onclick="switchTab('settings',this)">설정</div>
+  </div>
+  <div class="admin-body">
+
+    <!-- 오늘 현황 -->
+    <div class="a-sec on" id="sec-today">
+      <div class="stat-grid">
+        <div class="stat-box"><div class="stat-num" id="s-total" style="color:var(--gray-700)">-</div><div class="stat-lbl">전체</div></div>
+        <div class="stat-box"><div class="stat-num" id="s-ok" style="color:var(--success)">-</div><div class="stat-lbl">정상</div></div>
+        <div class="stat-box"><div class="stat-num" id="s-late" style="color:var(--warning)">-</div><div class="stat-lbl">지각</div></div>
+        <div class="stat-box"><div class="stat-num" id="s-absent" style="color:var(--danger)">-</div><div class="stat-lbl">미출근</div></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:12px;color:var(--gray-400);" id="last-update"></span>
+        <div style="display:flex;gap:6px;">
+          <button class="btn-sm" onclick="exportTodayCSV()">📊 오늘 엑셀</button>
+          <button class="btn-sm" onclick="loadToday()">🔄 새로고침</button>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>이름</th><th>부서</th><th>교대</th><th>출근</th><th>퇴근</th><th>상태</th><th>총 근무</th><th>수정</th></tr></thead>
+          <tbody id="today-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 월별 보고서 -->
+    <div class="a-sec" id="sec-monthly">
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
+        <input type="month" id="report-month" style="padding:8px 12px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;">
+        <select id="report-dept" style="padding:8px 12px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;" onchange="loadMonthly()">
+          <option value="">전체 부서</option>
+        </select>
+        <button class="btn-sm" onclick="loadMonthly()">조회</button>
+        <button class="btn-sm" onclick="exportMonthCSV()">📊 엑셀 다운로드</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>이름</th><th>부서</th><th>근무일</th><th>지각</th><th>조퇴</th><th>연장</th><th>총 근무시간</th></tr></thead>
+          <tbody id="monthly-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 일별 조회 -->
+    <div class="a-sec" id="sec-daily">
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
+        <input type="date" id="daily-date" style="padding:8px 12px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;">
+        <button class="btn-sm" onclick="loadDaily()">조회</button>
+        <button class="btn-sm" onclick="exportDailyCSV()">📊 엑셀</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>이름</th><th>부서</th><th>교대</th><th>출근</th><th>퇴근</th><th>지각</th><th>조퇴</th><th>연장</th><th>총 근무</th><th>IP</th><th>위치</th><th>수정</th></tr></thead>
+          <tbody id="daily-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 주별 조회 -->
+    <div class="a-sec" id="sec-weekly">
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
+        <input type="week" id="weekly-week" style="padding:8px 12px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;">
+        <select id="weekly-dept" style="padding:8px 12px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;" onchange="loadWeekly()">
+          <option value="">전체 부서</option>
+        </select>
+        <button class="btn-sm" onclick="loadWeekly()">조회</button>
+        <button class="btn-sm" onclick="exportWeeklyCSV()">📊 엑셀</button>
+      </div>
+      <!-- 주간 요약 통계 -->
+      <div id="weekly-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;"></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead id="weekly-thead"></thead>
+          <tbody id="weekly-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 직원별 조회 -->
+    <div class="a-sec" id="sec-member-report">
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
+        <select id="mr-uid" style="padding:8px 12px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;flex:1;" onchange="loadMemberReport()">
+          <option value="">직원 선택</option>
+        </select>
+        <select id="mr-period" style="padding:8px 12px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;" onchange="loadMemberReport()">
+          <option value="month">월별</option>
+          <option value="week">주별</option>
+          <option value="all">전체</option>
+        </select>
+        <input type="month" id="mr-month" style="padding:8px 12px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;" onchange="loadMemberReport()">
+        <button class="btn-sm" onclick="exportMemberCSV()">📊 엑셀</button>
+      </div>
+      <!-- 직원 요약 카드 -->
+      <div id="mr-summary" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;"></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>날짜</th><th>교대</th><th>출근</th><th>퇴근</th><th>지각</th><th>조퇴</th><th>연장</th><th>총 근무</th><th>IP</th><th>위치</th></tr></thead>
+          <tbody id="mr-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 직원 관리 -->
+    <div class="a-sec" id="sec-members">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <span style="font-size:13px;color:var(--gray-500);" id="member-count"></span>
+        <button class="btn-sm" onclick="copyInvite()">🔗 초대 링크 복사</button>
+      </div>
+      <div id="member-list"></div>
+    </div>
+
+    <!-- 기기 승인 -->
+    <div class="a-sec" id="sec-devices">
+      <div style="font-size:13px;color:var(--gray-500);margin-bottom:12px;">기기 변경 요청 목록</div>
+      <div id="device-list"></div>
+    </div>
+
+    <!-- 설정 -->
+    <div class="a-sec" id="sec-settings">
+      <div class="card">
+        <div style="font-size:13px;font-weight:600;color:var(--gray-500);margin-bottom:14px;">병원 기본 설정</div>
+        <div class="form-g"><label>병원 고정 IP (출퇴근 보안)</label><input type="text" id="set-ip" placeholder="예: 112.220.98.98"></div>
+        <div class="form-g">
+          <label>근무 모드</label>
+          <select id="set-mode">
+            <option value="normal">일반 (고정 출퇴근 시간)</option>
+            <option value="shift">3교대 (데이/이브닝/나이트 자동 인식)</option>
+          </select>
+        </div>
+        <!-- 일반 모드 설정 -->
+        <div id="normal-settings">
+          <div class="form-g"><label>기본 출근 시간</label><input type="time" id="set-in" value="09:00"></div>
+          <div class="form-g"><label>기본 퇴근 시간</label><input type="time" id="set-out" value="18:00"></div>
+          <div class="form-g"><label>지각 기준 (분)</label><input type="number" id="set-late" value="5" min="0" max="60"></div>
+        </div>
+        <!-- 3교대 모드 설정 -->
+        <div id="shift-settings" style="display:none;">
+          <div style="background:var(--primary-light);border-radius:10px;padding:12px;margin-bottom:12px;font-size:12px;color:var(--primary);line-height:1.8;">
+            <b>3교대 자동 인식 시간대</b><br>
+            🌅 데이: 05:00~08:30 출근 → 07:00~15:00<br>
+            🌆 이브닝: 12:30~15:30 출근 → 14:00~22:00<br>
+            🌙 나이트: 19:30~23:00 출근 → 21:00~익일 08:00
+          </div>
+          <div class="form-g"><label>지각 기준 (분)</label><input type="number" id="set-late-shift" value="5" min="0" max="30"></div>
+        </div>
+        <div style="border-top:1px solid var(--gray-200);margin:16px 0;padding-top:16px;">
+          <div style="font-size:13px;font-weight:600;color:var(--gray-500);margin-bottom:12px;">📲 텔레그램 알림</div>
+          <div class="form-g">
+            <label>알림 활성화</label>
+            <select id="set-tg-enabled">
+              <option value="true">켜기</option>
+              <option value="false">끄기</option>
+            </select>
+          </div>
+          <div class="form-g">
+            <label>Bot Token</label>
+            <input type="text" id="set-tg-token" placeholder="8628125730:AAG...">
+          </div>
+          <div class="form-g">
+            <label>Chat ID (관리자 그룹)</label>
+            <input type="text" id="set-tg-chatid" placeholder="-5183058553">
+          </div>
+          <button class="btn-sm" onclick="testTelegram()" style="width:100%;padding:10px;color:var(--primary);margin-bottom:8px;">📢 테스트 메시지 전송</button>
+        </div>
+        <button class="btn btn-primary" onclick="saveSettings()">저장</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 출퇴근 수정 모달 -->
+<div class="modal-back" id="modal-edit">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3>출퇴근 기록 수정</h3>
+    <input type="hidden" id="edit-uid">
+    <input type="hidden" id="edit-date">
+    <div style="font-size:13px;color:var(--gray-500);margin-bottom:14px;" id="edit-info"></div>
+    <div class="form-g"><label>출근 시간</label><input type="time" id="edit-in"></div>
+    <div class="form-g"><label>퇴근 시간 (선택)</label><input type="time" id="edit-out"></div>
+    <div class="modal-footer">
+      <button class="btn btn-gray" onclick="closeModal('modal-edit')">취소</button>
+      <button class="btn btn-primary" onclick="saveEdit()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 직원 수정 모달 -->
+<div class="modal-back" id="modal-member">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3>직원 정보</h3>
+    <input type="hidden" id="mem-uid">
+    <div class="form-g"><label>이름</label><input type="text" id="mem-name"></div>
+    <div class="form-g"><label>부서</label><input type="text" id="mem-dept" placeholder="예: 3층 병동, 원무과"></div>
+    <div class="form-g"><label>개인 출근 시간 (빈칸 = 병원 기본값 사용)</label><input type="time" id="mem-in"></div>
+    <div class="form-g"><label>개인 퇴근 시간</label><input type="time" id="mem-out"></div>
+    <div class="form-g">
+      <label>권한</label>
+      <select id="mem-role">
+        <option value="employee">직원</option>
+        <option value="admin">관리자</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-gray" onclick="closeModal('modal-member')">취소</button>
+      <button class="btn btn-primary" onclick="saveMember()">저장</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, where, getDocs, orderBy, serverTimestamp, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+const app = initializeApp({
+  apiKey:"AIzaSyDYRwZQGjrZbT_jrawL9kUfpVCkE-KMqlU",
+  authDomain:"shospital-attendance.firebaseapp.com",
+  projectId:"shospital-attendance",
+  storageBucket:"shospital-attendance.firebasestorage.app",
+  messagingSenderId:"502597673457",
+  appId:"1:502597673457:web:e3e56c4a89a9f7dad86450"
+});
+const auth = getAuth(app);
+const db   = getFirestore(app);
+
+// ── 전역 상태 ──
+let me = null, meData = null, isNetOk = false;
+let settings = { ip:'112.220.98.98', defaultIn:'09:00', defaultOut:'18:00', lateMin:5 };
+const DAYS = ['일','월','화','수','목','금','토'];
+
+// ── 유틸 ──
+const pad   = n => String(n).padStart(2,'0');
+const today = () => { const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+const fmt   = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const $     = id => document.getElementById(id);
+const nowM  = () => { const d=new Date(); return d.getHours()*60+d.getMinutes(); };
+const nowMonth = () => { const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}`; };
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  $(id)?.classList.add('active');
+}
+function toast(msg, type='default') {
+  const t=$('toast');
+  t.textContent=msg;
+  t.style.background=type==='success'?'#10b981':type==='error'?'#e24b4a':'#1f2937';
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2500);
+}
+function closeModal(id) { $(id).classList.remove('open'); }
+window.closeModal = closeModal;
+
+function getDeviceId() {
+  let id = localStorage.getItem('_shospital_did');
+  if (!id) {
+    id = 'D_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);
+    localStorage.setItem('_shospital_did', id);
+  }
+  return id;
+}
+
+// ── 텔레그램 알림 ──
+async function sendTelegram(msg) {
+  try {
+    const s = await getDoc(doc(db,'settings_simple','main'));
+    if(!s.exists()) return;
+    const { tgToken, tgChatId, tgEnabled } = s.data();
+    if(!tgEnabled || !tgToken || !tgChatId) return;
+    await fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ chat_id:tgChatId, text:msg, parse_mode:'HTML' })
+    });
+  } catch(e){}
+}
+
+// ── 설정 로드 ──
+async function loadSettings() {
+  try {
+    const s = await getDoc(doc(db,'settings_simple','main'));
+    if (s.exists()) settings = { ...settings, ...s.data() };
+  } catch(e){}
+}
+
+// ── 인증 ──
+window.doLogin = async () => {
+  try { await signInWithPopup(auth, new GoogleAuthProvider()); }
+  catch(e) { toast('로그인 실패: '+e.message,'error'); }
+};
+window.doSignOut = () => signOut(auth);
+
+onAuthStateChanged(auth, async user => {
+  $('loading').style.display = 'none';
+  if (!user) { showPage('page-login'); return; }
+  me = user;
+  await loadSettings();
+
+  const ref  = doc(db, 'users_simple', user.uid);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    // 신규 가입
+    const did = getDeviceId();
+    await setDoc(ref, {
+      uid:user.uid, name:user.displayName||'', email:user.email,
+      photo:user.photoURL||'', status:'pending', role:'employee',
+      dept:'', deviceId:'', pendingDeviceId:'', devicePending:false,
+      defaultIn:'', defaultOut:'', realName:false,
+      createdAt:serverTimestamp()
+    });
+    showPage('page-pending');
+    $('pending-msg').textContent = `${user.email}\n가입 신청이 완료됐습니다.\n관리자 승인 후 이용 가능합니다.`;
+    return;
+  }
+
+  meData = snap.data();
+
+  // 승인 대기
+  if (meData.status === 'pending') {
+    showPage('page-pending');
+    $('pending-msg').textContent = `${user.email}\n관리자 승인을 기다리는 중입니다.`;
+    return;
+  }
+
+  // 이름 미설정
+  if (!meData.realName) {
+    showPage('page-setname');
+    $('input-myname').value = '';
+    return;
+  }
+
+  // 기기 확인
+  const did = getDeviceId();
+  if (meData.deviceId && meData.deviceId !== did) {
+    // 기기 변경 승인 대기 중
+    if (meData.devicePending) {
+      showPage('page-pending');
+      $('pending-msg').textContent = '기기 변경 승인을 기다리는 중입니다.\n관리자에게 문의해주세요.';
+      return;
+    }
+    showPage('page-device');
+    return;
+  }
+
+  // 기기 첫 등록
+  if (!meData.deviceId) {
+    await updateDoc(ref, { deviceId: did });
+    meData.deviceId = did;
+  }
+
+  // 관리자 vs 직원
+  if (meData.role === 'admin' || meData.role === 'superadmin') loadAdminPage();
+  else loadEmpPage();
+});
+
+// ── 이름 저장 ──
+window.saveMyName = async () => {
+  const name = $('input-myname').value.trim();
+  if (!name) { toast('이름을 입력해주세요','error'); return; }
+  const did = getDeviceId();
+  await updateDoc(doc(db,'users_simple',me.uid), { name, realName:true, deviceId:did });
+  meData.name    = name;
+  meData.realName= true;
+  meData.deviceId= did;
+  loadEmpPage();
+};
+
+// ── 기기 변경 요청 ──
+window.requestDevice = async () => {
+  const did = getDeviceId();
+  await updateDoc(doc(db,'users_simple',me.uid), { pendingDeviceId:did, devicePending:true });
+  showPage('page-pending');
+  $('pending-msg').textContent = '기기 변경 요청이 접수됐습니다.\n관리자 승인 후 사용 가능합니다.';
+  toast('기기 변경 요청 완료!','success');
+};
+
+// ─────────────────────────────────────────────
+// ── 직원 앱 ──
+// ─────────────────────────────────────────────
+function loadEmpPage() {
+  showPage('page-emp');
+  const av = $('emp-avatar');
+  const photo = meData.photo || me.photoURL;
+  if (photo) av.innerHTML = `<img src="${photo}">`;
+  else       av.textContent = (meData.name||'?')[0];
+  $('emp-name').textContent = meData.name;
+  $('emp-dept').textContent = meData.dept || '';
+  startClock();
+  checkNetwork();
+  updateShiftBanner();
+  loadSecurityInfo();
+  loadTodayAtt();
+  loadWeek();
+  $('my-month').value = nowMonth();
+  loadMyHistory();
+  // 1분마다 교대 배너 업데이트
+  setInterval(updateShiftBanner, 60000);
+}
+
+// ── 보안 정보 로드 ──
+let myGps = null;
+async function loadSecurityInfo() {
+  // 기기 ID
+  const did = getDeviceId();
+  const didEl=$('my-device-id');
+  if(didEl) didEl.textContent = did;
+
+  // IP 주소 (네트워크 확인과 공유)
+  try {
+    const r = await fetch('https://api.ipify.org?format=json', {cache:'no-store'});
+    const {ip} = await r.json();
+    const ipEl=$('my-ip');
+    if(ipEl){
+      const isHospital = settings.ip && settings.ip===ip;
+      ipEl.innerHTML = `${ip} ${isHospital?'<span style="color:var(--success);font-size:10px;">✓ 병원 WiFi</span>':'<span style="color:var(--danger);font-size:10px;">⚠ 외부 네트워크</span>'}`;
+    }
+  } catch(e) {
+    const ipEl=$('my-ip'); if(ipEl) ipEl.textContent='확인 실패';
+  }
+
+  // GPS
+  const gpsEl=$('my-gps');
+  if(!gpsEl) return;
+  if(!navigator.geolocation){
+    gpsEl.textContent = '이 기기는 GPS를 지원하지 않습니다';
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      myGps = { lat:pos.coords.latitude, lng:pos.coords.longitude, acc:Math.round(pos.coords.accuracy) };
+      gpsEl.innerHTML = `위도: ${myGps.lat.toFixed(6)}<br>경도: ${myGps.lng.toFixed(6)}<br>정확도: ±${myGps.acc}m
+        <a href="https://maps.google.com/?q=${myGps.lat},${myGps.lng}" target="_blank"
+           style="display:inline-block;margin-top:4px;font-size:11px;color:var(--primary);">지도에서 보기 →</a>`;
+    },
+    err => {
+      gpsEl.textContent = err.code===1?'위치 권한이 거부됐습니다':'GPS 정보를 가져올 수 없습니다';
+      myGps = null;
+    },
+    { enableHighAccuracy:true, timeout:8000 }
+  );
+}
+
+// 3교대 배너 업데이트
+function updateShiftBanner() {
+  if(settings.mode !== 'shift') { $('shift-detect-banner').style.display='none'; return; }
+  const now = new Date();
+  const shift = detectShift(now);
+  const banner = $('shift-detect-banner');
+  if(shift){
+    const icon = shift.name==='데이'?'🌅':shift.name==='이브닝'?'🌆':'🌙';
+    banner.style.display = 'block';
+    banner.textContent = `${icon} ${shift.name} 근무 (${shift.start} ~ ${shift.end})`;
+  } else {
+    banner.style.display = 'block';
+    banner.style.background = 'var(--gray-100)';
+    banner.style.color = 'var(--gray-500)';
+    banner.textContent = '교대 인식 시간 외 (오프 출근도 기록됩니다)';
+  }
+}
+
+// 시계
+let clockTimer = null;
+function startClock() {
+  if (clockTimer) clearInterval(clockTimer);
+  function tick() {
+    const n = new Date();
+    $('live-clock').textContent = `${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
+    $('live-date').textContent  = `${n.getFullYear()}년 ${n.getMonth()+1}월 ${n.getDate()}일 ${DAYS[n.getDay()]}요일`;
+  }
+  tick();
+  clockTimer = setInterval(tick, 1000);
+}
+
+// 네트워크 확인
+async function checkNetwork() {
+  const banner = $('net-banner');
+  try {
+    const r  = await fetch('https://api.ipify.org?format=json', { cache:'no-store' });
+    const { ip } = await r.json();
+    if (settings.ip && settings.ip === ip) {
+      isNetOk = true;
+      banner.className = 'net-banner net-ok';
+      $('net-text').textContent = '병원 WiFi 연결됨 ✓';
+    } else {
+      isNetOk = false;
+      banner.className = 'net-banner net-fail';
+      $('net-text').textContent = `외부망 — 출퇴근 불가 (IP: ${ip})`;
+    }
+  } catch(e) {
+    isNetOk = false;
+    banner.className = 'net-banner net-fail';
+    $('net-text').textContent = '네트워크 확인 실패';
+  }
+  updateBtns();
+}
+
+// 오늘 기록 로드
+async function loadTodayAtt() {
+  // 3교대 나이트 자정~08:30 → 전날 기록 체크
+  let checkDate = today();
+  if(settings.mode==='shift'){
+    const m2=new Date().getHours()*60+new Date().getMinutes();
+    if(m2<=8*60+30){ const y=new Date(); y.setDate(y.getDate()-1); checkDate=y.toISOString().slice(0,10); }
+  }
+  const snap = await getDoc(doc(db,'attendance_simple',`${me.uid}_${checkDate}`));
+  if (!snap.exists()) { updateBtns(); return; }
+  const d = snap.data();
+  if (d.clockIn) {
+    const t = d.clockIn.toDate();
+    $('t-in').textContent = fmt(t); $('t-in').classList.remove('empty');
+    $('s-in').innerHTML = d.lateMin>0 ? `<span class="badge b-late">지각 +${d.lateMin}분</span>` : `<span class="badge b-ok">정상</span>`;
+    $('btn-in').className = 'btn-clock btn-cdone'; $('btn-in').textContent = '출근 완료 ✓';
+  }
+  if (d.clockOut) {
+    const t = d.clockOut.toDate();
+    $('t-out').textContent = fmt(t); $('t-out').classList.remove('empty');
+    $('s-out').innerHTML = d.otMin>0 ? `<span class="badge b-ot">연장 +${d.otMin}분</span>` : d.earlyMin>0 ? `<span class="badge b-early">조퇴 -${d.earlyMin}분</span>` : `<span class="badge b-ok">정상</span>`;
+    $('btn-out').className = 'btn-clock btn-cdone'; $('btn-out').textContent = '퇴근 완료 ✓';
+    const mins = Math.round((d.clockOut.toDate()-d.clockIn.toDate())/60000);
+    const tb=$('total-box'); tb.textContent=`오늘 총 근무: ${Math.floor(mins/60)}시간 ${mins%60}분`; tb.style.display='block';
+  } else if (d.clockIn) {
+    // 출근만 한 상태
+    $('btn-out').className = 'btn-clock btn-cout'; $('btn-out').textContent = '퇴근';
+  }
+}
+
+function updateBtns() {
+  const bi=$('btn-in'), bo=$('btn-out');
+  if (bi.textContent.includes('완료')) return; // 이미 출근 완료
+  bi.className = isNetOk ? 'btn-clock btn-cin' : 'btn-clock btn-coff';
+  if (!bo.textContent.includes('완료')) bo.className = isNetOk ? 'btn-clock btn-coff' : 'btn-clock btn-coff'; // 출근 전 퇴근 비활성
+}
+
+// 출근
+window.clockIn = async () => {
+  if (!isNetOk) { toast('병원 WiFi에서만 출근 가능합니다','error'); return; }
+  const bi=$('btn-in');
+  if (bi.className.includes('cdone')||bi.className.includes('coff')) return;
+  const now = new Date();
+
+  // 3교대 모드 처리
+  let shiftDate = today(), shiftName = '', shiftStart = '', shiftEnd = '', lateMin = 0;
+  if(settings.mode === 'shift'){
+    const shift = detectShift(now);
+    if(shift){
+      const info = getShiftInfo(shift, now);
+      shiftDate  = info.shiftDate;
+      lateMin    = info.lateMin;
+      shiftName  = shift.name;
+      shiftStart = shift.start;
+      shiftEnd   = shift.end;
+    }
+    // shift 없어도 (오프, 시간 외) 그냥 현재 시간으로 기록
+  } else {
+    const inM = meData.defaultIn||settings.defaultIn||'09:00';
+    const [sh,sm] = inM.split(':').map(Number);
+    lateMin  = nowM() > sh*60+sm+(parseInt(settings.lateMin)||5) ? nowM()-(sh*60+sm) : 0;
+    shiftStart = inM; shiftEnd = meData.defaultOut||settings.defaultOut||'18:00';
+  }
+
+  bi.textContent='처리중...'; bi.className='btn-clock btn-cdone';
+  try {
+    // 현재 IP 가져오기
+    let clockInIp='';
+    try { const r2=await fetch('https://api.ipify.org?format=json',{cache:'no-store'}); const d2=await r2.json(); clockInIp=d2.ip||''; } catch(e){}
+    await setDoc(doc(db,'attendance_simple',`${me.uid}_${shiftDate}`), {
+      uid:me.uid, name:meData.name, dept:meData.dept||'', date:shiftDate,
+      clockIn:Timestamp.fromDate(now), clockOut:null,
+      lateMin, earlyMin:0, otMin:0,
+      shiftName, shiftIn:shiftStart, shiftOut:shiftEnd,
+      deviceId:getDeviceId(),
+      clockInIp,
+      clockInGps:myGps||null
+    });
+    $('t-in').textContent=fmt(now); $('t-in').classList.remove('empty');
+    $('s-in').innerHTML=(shiftName?`<span style="font-size:10px;font-weight:600;color:var(--primary);">${shiftName}</span><br>`:'')+
+      (lateMin>0?`<span class="badge b-late">지각 +${lateMin}분</span>`:`<span class="badge b-ok">정상</span>`);
+    bi.textContent='출근 완료 ✓';
+    $('btn-out').className='btn-clock btn-cout'; $('btn-out').textContent='퇴근';
+    toast('출근 완료! ✓','success');
+    // 지각 시 텔레그램 알림
+    if(lateMin > 0){
+      const now2 = new Date();
+      const timeStr = fmt(now2);
+      const shiftLabel = shiftName||'일반';
+      await sendTelegram(`🟡 <b>[에스한방병원] 지각 출근</b>\n👤 ${meData.name} (${meData.dept||''})\n⏰ ${timeStr} 출근 (지각 ${lateMin}분)\n📋 ${shiftLabel} 근무\n📅 ${shiftDate}`);
+    }
+    loadWeek();
+  } catch(e) { toast('오류: '+e.message,'error'); bi.className='btn-clock btn-cin'; bi.textContent='출근'; }
+};
+
+// 퇴근
+window.clockOut = async () => {
+  if (!isNetOk) { toast('병원 WiFi에서만 퇴근 가능합니다','error'); return; }
+  const bo=$('btn-out');
+  if (bo.className.includes('cdone')||bo.className.includes('coff')) return;
+  bo.textContent='처리중...'; bo.className='btn-clock btn-cdone';
+  const now = new Date();
+
+  // 3교대 - 어떤 날짜 기록을 퇴근 처리할지 찾기
+  let targetDate = today();
+  if(settings.mode === 'shift'){
+    // 자정~08:30 → 전날 나이트 퇴근
+    const totalM2 = now.getHours()*60+now.getMinutes();
+    if(totalM2 <= 8*60+30){
+      const yesterday = new Date(now); yesterday.setDate(yesterday.getDate()-1);
+      targetDate = yesterday.toISOString().slice(0,10);
+    }
+  }
+
+  const snap = await getDoc(doc(db,'attendance_simple',`${me.uid}_${targetDate}`));
+  if (!snap.exists()) { toast('출근 기록이 없습니다','error'); bo.className='btn-clock btn-cout'; bo.textContent='퇴근'; return; }
+  const d = snap.data();
+
+  // 교대별 퇴근 기준 시간
+  let endM = 0;
+  if(settings.mode === 'shift' && d.shiftOut){
+    const [eh2,em2] = d.shiftOut.split(':').map(Number);
+    // 나이트 퇴근(08:00) - 자정 넘긴 경우 처리
+    if(d.shiftName==='나이트'){ endM=8*60; }
+    else endM = eh2*60+em2;
+  } else {
+    const outM2 = meData.defaultOut||settings.defaultOut||'18:00';
+    const [eh,em] = outM2.split(':').map(Number);
+    endM = eh*60+em;
+  }
+  const curM = now.getHours()*60+now.getMinutes();
+  // 나이트의 경우 curM이 작을 수 있어서 별도 처리
+  const earlyMin = (d.shiftName!=='나이트') && curM<endM-5 ? endM-curM : 0;
+  const otMin    = (d.shiftName!=='나이트') && curM>endM+5 ? curM-endM : 0;
+  try {
+    await updateDoc(doc(db,'attendance_simple',`${me.uid}_${targetDate}`), {
+      clockOut:Timestamp.fromDate(now), earlyMin, otMin
+    });
+    $('t-out').textContent=fmt(now); $('t-out').classList.remove('empty');
+    $('s-out').innerHTML=otMin>0?`<span class="badge b-ot">연장 +${otMin}분</span>`:earlyMin>0?`<span class="badge b-early">조퇴 -${earlyMin}분</span>`:`<span class="badge b-ok">정상</span>`;
+    bo.textContent='퇴근 완료 ✓';
+    const mins=Math.round((now-d.clockIn.toDate())/60000);
+    const tb=$('total-box'); tb.textContent=`오늘 총 근무: ${Math.floor(mins/60)}시간 ${mins%60}분`; tb.style.display='block';
+    toast('퇴근 완료! ✓','success');
+    loadWeek();
+  } catch(e) { toast('오류: '+e.message,'error'); bo.className='btn-clock btn-cout'; bo.textContent='퇴근'; }
+};
+
+// 이번주 기록
+async function loadWeek() {
+  const n=new Date(); const dow=n.getDay();
+  const mon=new Date(n); mon.setDate(n.getDate()-(dow===0?6:dow-1)); mon.setHours(0,0,0,0);
+  const monStr=mon.toISOString().slice(0,10);
+  const snap=await getDocs(query(collection(db,'attendance_simple'),where('uid','==',me.uid),where('date','>=',monStr),orderBy('date','desc')));
+  const map={}; snap.forEach(d=>map[d.data().date]=d.data());
+  let html='';
+  for(let i=6;i>=0;i--){
+    const d=new Date(mon); d.setDate(mon.getDate()+i);
+    const ds=d.toISOString().slice(0,10);
+    const isToday=ds===today();
+    const rec=map[ds];
+    const dc=d.getDay()===0?'sun':d.getDay()===6?'sat':'';
+    const inT=rec?.clockIn?fmt(rec.clockIn.toDate()):'';
+    const outT=rec?.clockOut?fmt(rec.clockOut.toDate()):'';
+    let badge=`<span class="badge b-none">-</span>`;
+    if(rec){
+      const shiftTag=rec.shiftName?`<span style="font-size:9px;font-weight:600;color:var(--primary);display:block;">${rec.shiftName}</span>`:'';
+      badge=shiftTag+(rec.lateMin>0?`<span class="badge b-late">지각</span>`:rec.otMin>0?`<span class="badge b-ot">연장</span>`:rec.earlyMin>0?`<span class="badge b-early">조퇴</span>`:`<span class="badge b-ok">정상</span>`);
+    }
+    html+=`<div class="week-row">
+      <div class="week-day ${dc}${isToday?' today-d':''}">${d.getMonth()+1}/${d.getDate()}<br>${DAYS[d.getDay()]}</div>
+      <div class="week-times">${inT?`${inT}<br>→ ${outT||'재직중'}`:'-'}</div>
+      ${badge}
+    </div>`;
+  }
+  $('week-list').innerHTML=html;
+}
+
+// ─────────────────────────────────────────────
+// ── 관리자 ──
+// ─────────────────────────────────────────────
+async function loadAdminPage() {
+  showPage('page-admin');
+  $('report-month').value = nowMonth();
+  $('daily-date').value   = today();
+  await loadSettings2();
+  await loadToday();
+  await loadDepts();
+  await loadMemberSelectList();
+  // 주별 기본값 - 이번 주
+  const now2=new Date(); const yr2=now2.getFullYear();
+  const start2=new Date(now2); start2.setDate(now2.getDate()-(now2.getDay()||7)+1);
+  const wk2=getWeekNum(start2);
+  $('weekly-week').value=`${yr2}-W${String(wk2).padStart(2,'0')}`;
+  $('mr-month').value=nowMonth();
+}
+
+window.switchTab = (tab, el) => {
+  document.querySelectorAll('.a-tab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  document.querySelectorAll('.a-sec').forEach(s=>s.classList.remove('on'));
+  $('sec-'+tab).classList.add('on');
+  if(tab==='today')   loadToday();
+  if(tab==='monthly') loadMonthly();
+  if(tab==='daily')   loadDaily();
+  if(tab==='members') loadMembers();
+  if(tab==='devices') loadDevices();
+  if(tab==='settings')loadSettings2();
+  if(tab==='weekly'){ loadWeekly(); loadDepts2('weekly-dept'); }
+  if(tab==='member-report'){ loadMemberSelectList(); loadMemberReport(); }
+};
+
+// 오늘 현황
+window.loadToday = async () => {
+  const td = today();
+  const [uSnap, aSnap] = await Promise.all([
+    getDocs(query(collection(db,'users_simple'),where('status','==','approved'))),
+    getDocs(query(collection(db,'attendance_simple'),where('date','==',td)))
+  ]);
+  const users=[]; uSnap.forEach(d=>users.push({id:d.id,...d.data()}));
+  const aMap={}; aSnap.forEach(d=>{ const r=d.data(); aMap[r.uid]=r; });
+  let ok=0,late=0,absent=0;
+  users.forEach(u=>{ const a=aMap[u.uid]; if(!a) absent++; else if(a.lateMin>0) late++; else ok++; });
+  $('s-total').textContent=users.length; $('s-ok').textContent=ok; $('s-late').textContent=late; $('s-absent').textContent=absent;
+  $('last-update').textContent=`갱신: ${fmt(new Date())}`;
+  // 미출근 텔레그램 (하루 1회, 출근 마감 시간 이후에만)
+  const nowH = new Date().getHours();
+  const absKey = `absent_notified_${td}`;
+  if(nowH >= 10 && !sessionStorage.getItem(absKey)){
+    const absentList = users.filter(u=>!aMap[u.uid]);
+    if(absentList.length > 0){
+      const names = absentList.map(u=>`• ${u.name} (${u.dept||''})`).join('\n');
+      await sendTelegram(`🔴 <b>[에스한방병원] 미출근 알림</b>\n⚠️ ${fmt(new Date())} 현재 미출근 ${absentList.length}명\n\n${names}\n\n📅 ${td}`);
+      sessionStorage.setItem(absKey,'1');
+    }
+  }
+  let html='';
+  users.sort((a,b)=>(a.dept||'').localeCompare(b.dept||'','ko')).forEach(u=>{
+    const a=aMap[u.uid];
+    const inT=a?.clockIn?fmt(a.clockIn.toDate()):'—';
+    const outT=a?.clockOut?fmt(a.clockOut.toDate()):'—';
+    const status=!a?`<span class="badge b-none">미출근</span>`:a.lateMin>0?`<span class="badge b-late">지각 +${a.lateMin}분</span>`:a.otMin>0?`<span class="badge b-ot">연장</span>`:`<span class="badge b-ok">정상</span>`;
+    let totalStr='—';
+    if(a?.clockIn&&a?.clockOut){ const mins=Math.round((a.clockOut.toDate()-a.clockIn.toDate())/60000); totalStr=`${Math.floor(mins/60)}h ${mins%60}m`; }
+    const shiftLabel=a?.shiftName?`<span style="font-size:11px;font-weight:600;color:var(--primary);">${a.shiftName}</span>`:'—';
+    html+=`<tr><td>${u.name}</td><td>${u.dept||'—'}</td><td>${shiftLabel}</td><td>${inT}</td><td>${outT}</td><td>${status}</td><td>${totalStr}</td><td><button class="btn-sm" onclick="openEdit('${u.id}','${u.name}','${td}','${inT}','${outT}')">수정</button></td></tr>`;
+  });
+  $('today-tbody').innerHTML=html||'<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--gray-400)">직원이 없습니다</td></tr>';
+};
+
+// 월별 보고서
+window.loadMonthly = async () => {
+  const m=$('report-month').value; if(!m) return;
+  const dF=$('report-dept').value;
+  const [y,mo]=m.split('-');
+  const snap=await getDocs(query(collection(db,'attendance_simple'),where('date','>=',`${y}-${mo}-01`),where('date','<=',`${y}-${mo}-31`)));
+  const map={};
+  snap.forEach(d=>{ const r=d.data();
+    if(dF&&r.dept!==dF) return;
+    if(!map[r.uid]) map[r.uid]={name:r.name,dept:r.dept||'',days:0,lateC:0,earlyC:0,otH:0,totalMin:0};
+    map[r.uid].days++;
+    if(r.lateMin>0) map[r.uid].lateC++;
+    if(r.earlyMin>0) map[r.uid].earlyC++;
+    map[r.uid].otH+=r.otMin||0;
+    if(r.clockIn&&r.clockOut) map[r.uid].totalMin+=(r.clockOut.toDate()-r.clockIn.toDate())/60000;
+  });
+  let html='';
+  Object.values(map).sort((a,b)=>a.dept.localeCompare(b.dept,'ko')).forEach(r=>{
+    const h=Math.floor(r.totalMin/60),mn=Math.round(r.totalMin%60);
+    html+=`<tr><td>${r.name}</td><td>${r.dept||'—'}</td><td>${r.days}일</td><td>${r.lateC}회</td><td>${r.earlyC}회</td><td>${Math.round(r.otH/60*10)/10}h</td><td>${h}h ${mn}m</td></tr>`;
+  });
+  $('monthly-tbody').innerHTML=html||'<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--gray-400)">기록 없음</td></tr>';
+};
+
+// 일별 조회
+window.loadDaily = async () => {
+  const d=$('daily-date').value; if(!d) return;
+  const [uSnap,aSnap]=await Promise.all([
+    getDocs(query(collection(db,'users_simple'),where('status','==','approved'))),
+    getDocs(query(collection(db,'attendance_simple'),where('date','==',d)))
+  ]);
+  const users=[]; uSnap.forEach(u=>users.push({id:u.id,...u.data()}));
+  const aMap={}; aSnap.forEach(u=>{ const r=u.data(); aMap[r.uid]=r; });
+  let html='';
+  users.sort((a,b)=>(a.dept||'').localeCompare(b.dept||'','ko')).forEach(u=>{
+    const a=aMap[u.uid];
+    const inT=a?.clockIn?fmt(a.clockIn.toDate()):'—';
+    const outT=a?.clockOut?fmt(a.clockOut.toDate()):'—';
+    let totalStr='—';
+    if(a?.clockIn&&a?.clockOut){ const m2=Math.round((a.clockOut.toDate()-a.clockIn.toDate())/60000); totalStr=`${Math.floor(m2/60)}h${m2%60}m`; }
+    const gps2=a?.clockInGps?`<a href="https://maps.google.com/?q=${a.clockInGps.lat},${a.clockInGps.lng}" target="_blank" style="font-size:10px;color:var(--primary);">📍</a>`:'—';
+    html+=`<tr><td>${u.name}</td><td>${u.dept||'—'}</td><td>${a?.shiftName||'—'}</td><td>${inT}</td><td>${outT}</td>
+      <td>${a?.lateMin>0?`+${a.lateMin}분`:'—'}</td>
+      <td>${a?.earlyMin>0?`-${a.earlyMin}분`:'—'}</td>
+      <td>${a?.otMin>0?`+${a.otMin}분`:'—'}</td>
+      <td>${totalStr}</td>
+      <td style="font-size:10px;">${a?.clockInIp||'—'}</td>
+      <td>${gps2}</td>
+      <td><button class="btn-sm" onclick="openEdit('${u.id}','${u.name}','${d}','${inT}','${outT}')">수정</button></td></tr>`;
+  });
+  $('daily-tbody').innerHTML=html||'<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--gray-400)">기록 없음</td></tr>';
+};
+
+// 엑셀 - 오늘
+window.exportTodayCSV = async () => {
+  const td=today();
+  const [uSnap,aSnap]=await Promise.all([
+    getDocs(query(collection(db,'users_simple'),where('status','==','approved'))),
+    getDocs(query(collection(db,'attendance_simple'),where('date','==',td)))
+  ]);
+  const users=[]; uSnap.forEach(d=>users.push({id:d.id,...d.data()}));
+  const aMap={}; aSnap.forEach(d=>{ const r=d.data(); aMap[r.uid]=r; });
+  const rows=[['이름','부서','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)','상태']];
+  users.sort((a,b)=>(a.dept||'').localeCompare(b.dept||'','ko')).forEach(u=>{
+    const a=aMap[u.uid];
+    const inT=a?.clockIn?fmt(a.clockIn.toDate()):'';
+    const outT=a?.clockOut?fmt(a.clockOut.toDate()):'';
+    const total=a?.clockIn&&a?.clockOut?Math.round((a.clockOut.toDate()-a.clockIn.toDate())/60000):0;
+    const status=!a?'미출근':a.lateMin>0?'지각':a.otMin>0?'연장':'정상';
+    rows.push([u.name,u.dept||'',inT,outT,a?.lateMin||0,a?.earlyMin||0,a?.otMin||0,total,status]);
+  });
+  dlCSV(rows, `출퇴근현황_${td}.csv`);
+};
+
+// 엑셀 - 월별
+window.exportMonthCSV = async () => {
+  const m=$('report-month').value||nowMonth();
+  const [y,mo]=m.split('-');
+  const snap=await getDocs(query(collection(db,'attendance_simple'),where('date','>=',`${y}-${mo}-01`),where('date','<=',`${y}-${mo}-31`),orderBy('date','asc')));
+  const rows=[['이름','부서','날짜','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)']];
+  snap.forEach(d=>{ const r=d.data();
+    const inT=r.clockIn?fmt(r.clockIn.toDate()):'';
+    const outT=r.clockOut?fmt(r.clockOut.toDate()):'';
+    const total=r.clockIn&&r.clockOut?Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000):0;
+    rows.push([r.name,r.dept||'',r.date,inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total]);
+  });
+  dlCSV(rows, `월별근태_${m}.csv`);
+};
+
+// 엑셀 - 일별
+window.exportDailyCSV = async () => {
+  const d=$('daily-date').value||today();
+  const snap=await getDocs(query(collection(db,'attendance_simple'),where('date','==',d)));
+  const rows=[['이름','부서','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)']];
+  snap.forEach(doc=>{ const r=doc.data();
+    const inT=r.clockIn?fmt(r.clockIn.toDate()):'';
+    const outT=r.clockOut?fmt(r.clockOut.toDate()):'';
+    const total=r.clockIn&&r.clockOut?Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000):0;
+    rows.push([r.name,r.dept||'',inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total]);
+  });
+  dlCSV(rows, `일별근태_${d}.csv`);
+};
+
+function dlCSV(rows, filename) {
+  const csv = rows.map(r=>r.join(',')).join('\n');
+  const a   = document.createElement('a');
+  a.href    = URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
+  a.download= filename; a.click();
+  toast('다운로드 완료!','success');
+}
+
+// 직원 관리
+window.loadMembers = async () => {
+  const snap=await getDocs(collection(db,'users_simple'));
+  const users=[]; snap.forEach(d=>users.push({id:d.id,...d.data()}));
+  const pending =users.filter(u=>u.status==='pending');
+  const approved=users.filter(u=>u.status==='approved');
+  $('member-count').textContent=`승인 대기 ${pending.length}명 / 전체 ${users.length}명`;
+  let html='';
+  // 대기
+  pending.forEach(u=>{
+    html+=`<div class="member-card" style="border-left:3px solid var(--warning);">
+      <div class="mc-info">
+        <div class="mc-name">${u.name||u.email} <span class="badge b-pending">대기</span></div>
+        <div class="mc-sub">${u.email}</div>
+      </div>
+      <div class="mc-actions">
+        <button class="btn-approve" onclick="approveMember('${u.id}')">승인</button>
+        <button class="btn-reject" onclick="rejectMember('${u.id}')">거부</button>
+      </div>
+    </div>`;
+  });
+  // 승인됨
+  approved.sort((a,b)=>(a.dept||'').localeCompare(b.dept||'','ko')).forEach(u=>{
+    html+=`<div class="member-card">
+      <div class="mc-info">
+        <div class="mc-name">${u.name}</div>
+        <div class="mc-sub">${u.dept||'부서없음'} · ${u.role==='admin'||u.role==='superadmin'?'관리자':'직원'} · ${u.deviceId?'📱기기등록':'⚠️기기미등록'}</div>
+      </div>
+      <div class="mc-actions">
+        <button class="btn-sm" onclick="openMember('${u.id}')">수정</button>
+        <button class="btn-reject" onclick="resetDevice('${u.id}')">기기초기화</button>
+      </div>
+    </div>`;
+  });
+  $('member-list').innerHTML=html||'<div style="text-align:center;color:var(--gray-400);padding:20px;">직원이 없습니다</div>';
+};
+
+window.approveMember = async (uid) => {
+  const dept=prompt('부서를 입력하세요 (예: 3층 병동)','');
+  if(dept===null) return;
+  await updateDoc(doc(db,'users_simple',uid),{status:'approved',dept:dept||''});
+  toast('승인됐습니다','success'); await loadMembers();
+};
+window.rejectMember = async (uid) => {
+  if(!confirm('가입을 거부하고 삭제할까요?')) return;
+  await deleteDoc(doc(db,'users_simple',uid));
+  toast('처리됐습니다'); await loadMembers();
+};
+window.resetDevice = async (uid) => {
+  if(!confirm('기기를 초기화하면 다음 로그인 시 새 기기로 등록됩니다. 계속할까요?')) return;
+  await updateDoc(doc(db,'users_simple',uid),{deviceId:'',devicePending:false,pendingDeviceId:''});
+  toast('기기가 초기화됐습니다','success'); await loadMembers();
+};
+
+// 기기 승인
+window.loadDevices = async () => {
+  const snap=await getDocs(query(collection(db,'users_simple'),where('devicePending','==',true)));
+  if(snap.empty){ $('device-list').innerHTML='<div style="text-align:center;color:var(--gray-400);padding:24px;">기기 변경 요청이 없습니다</div>'; return; }
+  let html='';
+  snap.forEach(d=>{ const u=d.data();
+    html+=`<div class="member-card" style="border-left:3px solid var(--warning);">
+      <div class="mc-info">
+        <div class="mc-name">${u.name}</div>
+        <div class="mc-sub">${u.dept||''} · 기기 변경 요청</div>
+      </div>
+      <div class="mc-actions">
+        <button class="btn-approve" onclick="approveDevice('${d.id}')">승인</button>
+        <button class="btn-reject"  onclick="rejectDevice('${d.id}')">거절</button>
+      </div>
+    </div>`;
+  });
+  $('device-list').innerHTML=html;
+};
+window.approveDevice = async (uid) => {
+  const snap=await getDoc(doc(db,'users_simple',uid)); if(!snap.exists()) return;
+  const newId=snap.data().pendingDeviceId;
+  if(!newId){ toast('기기 ID가 없습니다','error'); return; }
+  await updateDoc(doc(db,'users_simple',uid),{deviceId:newId,devicePending:false,pendingDeviceId:''});
+  toast('기기 변경 승인됐습니다','success'); await loadDevices();
+};
+window.rejectDevice = async (uid) => {
+  await updateDoc(doc(db,'users_simple',uid),{devicePending:false,pendingDeviceId:''});
+  toast('기기 변경 거절됐습니다'); await loadDevices();
+};
+
+// 출퇴근 수정
+window.openEdit = (uid, name, date, inT, outT) => {
+  $('edit-uid').value=uid; $('edit-date').value=date;
+  $('edit-info').textContent=`${name} / ${date}`;
+  $('edit-in').value  = inT==='—'?'':inT;
+  $('edit-out').value = outT==='—'?'':outT;
+  $('modal-edit').classList.add('open');
+};
+window.saveEdit = async () => {
+  const uid=$('edit-uid').value, date=$('edit-date').value;
+  const inT=$('edit-in').value, outT=$('edit-out').value;
+  if(!inT){ toast('출근 시간을 입력하세요','error'); return; }
+  const inDate=new Date(`${date}T${inT}:00`);
+  const clockIn=Timestamp.fromDate(inDate);
+  let clockOut=null, otMin=0, earlyMin=0;
+  if(outT){
+    clockOut=Timestamp.fromDate(new Date(`${date}T${outT}:00`));
+    const outRef=settings.defaultOut||'18:00';
+    const [eh,em]=outRef.split(':').map(Number); const endM=eh*60+em;
+    const outMins=parseInt(outT.split(':')[0])*60+parseInt(outT.split(':')[1]);
+    if(outMins<endM-5) earlyMin=endM-outMins; else if(outMins>endM+5) otMin=outMins-endM;
+  }
+  const inRef=settings.defaultIn||'09:00';
+  const [sh,sm]=inRef.split(':').map(Number);
+  const inMins=parseInt(inT.split(':')[0])*60+parseInt(inT.split(':')[1]);
+  const lateMin=inMins>sh*60+sm+(parseInt(settings.lateMin)||5)?inMins-(sh*60+sm):0;
+  const uSnap=await getDoc(doc(db,'users_simple',uid));
+  const u=uSnap.exists()?uSnap.data():{name:'',dept:''};
+  const data={uid,name:u.name||'',dept:u.dept||'',date,clockIn,lateMin,earlyMin,otMin};
+  if(clockOut) data.clockOut=clockOut;
+  const ref=doc(db,'attendance_simple',`${uid}_${date}`);
+  const existing=await getDoc(ref);
+  if(existing.exists()) await updateDoc(ref,data); else await setDoc(ref,data);
+  closeModal('modal-edit'); toast('수정됐습니다','success');
+  await loadToday(); await loadDaily();
+};
+
+// 직원 수정
+window.openMember = async (uid) => {
+  const snap=await getDoc(doc(db,'users_simple',uid)); if(!snap.exists()) return;
+  const u=snap.data();
+  $('mem-uid').value=uid; $('mem-name').value=u.name||'';
+  $('mem-dept').value=u.dept||''; $('mem-in').value=u.defaultIn||'';
+  $('mem-out').value=u.defaultOut||''; $('mem-role').value=u.role||'employee';
+  $('modal-member').classList.add('open');
+};
+window.saveMember = async () => {
+  const uid=$('mem-uid').value;
+  const name=$('mem-name').value.trim();
+  if(!name){ toast('이름을 입력하세요','error'); return; }
+  await updateDoc(doc(db,'users_simple',uid),{
+    name, dept:$('mem-dept').value.trim(),
+    defaultIn:$('mem-in').value, defaultOut:$('mem-out').value,
+    role:$('mem-role').value, realName:true
+  });
+  closeModal('modal-member'); toast('저장됐습니다','success'); await loadMembers();
+};
+
+// 부서 목록 (다용도)
+async function loadDepts2(selectId){
+  const snap=await getDocs(query(collection(db,'users_simple'),where('status','==','approved')));
+  const depts=new Set(); snap.forEach(d=>{ if(d.data().dept) depts.add(d.data().dept); });
+  const el=$(selectId); if(!el) return;
+  const cur=el.value;
+  let opts='<option value="">전체 부서</option>';
+  [...depts].sort((a,b)=>a.localeCompare(b,'ko')).forEach(d=>opts+=`<option value="${d}">${d}</option>`);
+  el.innerHTML=opts; el.value=cur;
+}
+
+// 부서 목록 (기존)
+async function loadDepts(){
+  const snap=await getDocs(query(collection(db,'users_simple'),where('status','==','approved')));
+  const depts=new Set(); snap.forEach(d=>{ if(d.data().dept) depts.add(d.data().dept); });
+  let opts='<option value="">전체 부서</option>';
+  [...depts].sort((a,b)=>a.localeCompare(b,'ko')).forEach(d=>opts+=`<option value="${d}">${d}</option>`);
+  $('report-dept').innerHTML=opts;
+}
+
+// ISO 주차 계산
+function getWeekNum(d) {
+  const date=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+  date.setUTCDate(date.getUTCDate()+4-(date.getUTCDay()||7));
+  const yearStart=new Date(Date.UTC(date.getUTCFullYear(),0,1));
+  return Math.ceil((((date-yearStart)/86400000)+1)/7);
+}
+
+// 설정
+async function loadSettings2(){
+  await loadSettings();
+  $('set-ip').value        = settings.ip||'';
+  $('set-tg-enabled').value= settings.tgEnabled===false?'false':'true';
+  $('set-tg-token').value  = settings.tgToken||'';
+  $('set-tg-chatid').value = settings.tgChatId||'';
+  $('set-mode').value      = settings.mode||'normal';
+  $('set-in').value        = settings.defaultIn||'09:00';
+  $('set-out').value       = settings.defaultOut||'18:00';
+  $('set-late').value      = settings.lateMin||5;
+  $('set-late-shift').value= settings.lateMin||5;
+  // 모드에 따라 UI 전환
+  const isShift=(settings.mode==='shift');
+  $('normal-settings').style.display=isShift?'none':'block';
+  $('shift-settings').style.display=isShift?'block':'none';
+  // 모드 변경 이벤트
+  $('set-mode').onchange=()=>{
+    const s=$('set-mode').value==='shift';
+    $('normal-settings').style.display=s?'none':'block';
+    $('shift-settings').style.display=s?'block':'none';
+  };
+}
+window.saveSettings = async () => {
+  const mode=$('set-mode').value;
+  const data={
+    ip:$('set-ip').value.trim(),
+    mode,
+    tgEnabled:$('set-tg-enabled').value==='true',
+    tgToken:$('set-tg-token').value.trim(),
+    tgChatId:$('set-tg-chatid').value.trim(),
+    defaultIn:$('set-in').value,
+    defaultOut:$('set-out').value,
+    lateMin:mode==='shift'?parseInt($('set-late-shift').value)||5:parseInt($('set-late').value)||5
+  };
+  await setDoc(doc(db,'settings_simple','main'),data);
+  settings={...settings,...data};
+  toast('설정이 저장됐습니다','success');
+};
+
+// ── 3교대 자동 인식 ──
+const SHIFTS = [
+  { name:'데이',   start:'07:00', end:'15:00', startH:7,  startM:7*60,  endH:15, endM:15*60, window:[5*60,    8*60+30] },
+  { name:'이브닝', start:'14:00', end:'22:00', startH:14, startM:14*60, endH:22, endM:22*60, window:[12*60+30,15*60+30] },
+  { name:'나이트', start:'21:00', end:'08:00', startH:21, startM:21*60, endH:8,  endM:8*60,  window:[19*60+30,23*60],   overnight:true },
+];
+
+function detectShift(now) {
+  const h = now.getHours(), mn = now.getMinutes();
+  const totalM = h*60 + mn;
+  // 자정~08:30 → 나이트 연장 (전날 나이트가 이어짐)
+  if(totalM <= 8*60+30) return { ...SHIFTS[2], continuing:true };
+  for(const s of SHIFTS){
+    const [ws, we] = s.window;
+    if(totalM >= ws && totalM <= we) return s;
+  }
+  return null;
+}
+
+function getShiftInfo(shift, now) {
+  // 출근 날짜 / 퇴근 날짜 계산
+  const today2 = now.toISOString().slice(0,10);
+  let shiftDate = today2;
+  if(shift.continuing) {
+    // 자정 넘어서 출근한 나이트 → 전날 날짜로 기록
+    const yesterday = new Date(now); yesterday.setDate(yesterday.getDate()-1);
+    shiftDate = yesterday.toISOString().slice(0,10);
+  }
+  // 지각 계산
+  const nowM = now.getHours()*60+now.getMinutes();
+  let baseM = shift.startM;
+  if(shift.continuing) baseM = 21*60; // 나이트 21:00 기준 (전날)
+  const lateMin = !shift.continuing && nowM > baseM+(parseInt(settings.lateMin)||5) ? nowM-baseM : 0;
+  return { shiftDate, lateMin };
+}
+
+// ── 직원 본인 과거 기록 ──
+window.loadMyHistory = async () => {
+  const m = $('my-month').value; if(!m) return;
+  const [y,mo] = m.split('-');
+  const snap = await getDocs(query(
+    collection(db,'attendance_simple'),
+    where('uid','==',me.uid),
+    where('date','>=',`${y}-${mo}-01`),
+    where('date','<=',`${y}-${mo}-31`),
+    orderBy('date','desc')
+  ));
+  if(snap.empty){ $('my-history').innerHTML='<div style="text-align:center;color:var(--gray-400);padding:12px;">기록이 없습니다</div>'; return; }
+  let html='', totalMin=0, workDays=0, lateCnt=0;
+  snap.forEach(d=>{ const r=d.data();
+    const inT=r.clockIn?fmt(r.clockIn.toDate()):'—';
+    const outT=r.clockOut?fmt(r.clockOut.toDate()):'—';
+    let mins=0; if(r.clockIn&&r.clockOut){ mins=Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000); totalMin+=mins; }
+    workDays++; if(r.lateMin>0) lateCnt++;
+    const badge=r.lateMin>0?`<span class="badge b-late">지각</span>`:r.otMin>0?`<span class="badge b-ot">연장</span>`:r.earlyMin>0?`<span class="badge b-early">조퇴</span>`:`<span class="badge b-ok">정상</span>`;
+    const [,, dd]=r.date.split('-'); const dow2=new Date(r.date+'T00:00:00').getDay();
+    const dowCls=dow2===0?'color:var(--danger)':dow2===6?'color:#3b82f6':'';
+    html+=`<div class="week-row">
+      <div class="week-day" style="${dowCls}">${dd}일 ${DAYS[dow2]}</div>
+      <div class="week-times" style="font-size:12px;">${inT} → ${outT}${mins?` (${Math.floor(mins/60)}h${mins%60}m)`:''}</div>
+      ${badge}
+    </div>`;
+  });
+  // 월 요약
+  const sumHtml=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px;">
+    <div style="background:var(--primary-light);border-radius:8px;padding:8px;text-align:center;"><div style="font-size:18px;font-weight:700;color:var(--primary);">${workDays}</div><div style="font-size:10px;color:var(--primary);">근무일</div></div>
+    <div style="background:var(--warning-light);border-radius:8px;padding:8px;text-align:center;"><div style="font-size:18px;font-weight:700;color:#92400e;">${lateCnt}</div><div style="font-size:10px;color:#92400e;">지각</div></div>
+    <div style="background:var(--success-light);border-radius:8px;padding:8px;text-align:center;"><div style="font-size:18px;font-weight:700;color:#065f46;">${Math.floor(totalMin/60)}h</div><div style="font-size:10px;color:#065f46;">총 근무</div></div>
+  </div>`;
+  $('my-history').innerHTML = sumHtml+html;
+};
+
+window.exportMyCSV = async () => {
+  const m=$('my-month').value; if(!m){ toast('월을 선택하세요','error'); return; }
+  const [y,mo]=m.split('-');
+  const snap=await getDocs(query(collection(db,'attendance_simple'),where('uid','==',me.uid),where('date','>=',`${y}-${mo}-01`),where('date','<=',`${y}-${mo}-31`),orderBy('date','asc')));
+  const rows=[['날짜','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)']];
+  snap.forEach(d=>{ const r=d.data();
+    const inT=r.clockIn?fmt(r.clockIn.toDate()):'';
+    const outT=r.clockOut?fmt(r.clockOut.toDate()):'';
+    const total=r.clockIn&&r.clockOut?Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000):0;
+    rows.push([r.date,inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total]);
+  });
+  dlCSV(rows,`내근무기록_${m}.csv`);
+};
+
+// ── 관리자 주별 조회 ──
+window.loadWeekly = async () => {
+  const wv=$('weekly-week').value; if(!wv) return;
+  // YYYY-Www → 해당 주 월~일 날짜 계산
+  const [yw,ww]=wv.split('-W');
+  const jan4=new Date(parseInt(yw),0,4);
+  const weekStart=new Date(jan4);
+  weekStart.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(parseInt(ww)-1)*7);
+  const dates=[];
+  for(let i=0;i<7;i++){
+    const d=new Date(weekStart); d.setDate(weekStart.getDate()+i);
+    dates.push(d.toISOString().slice(0,10));
+  }
+  const startDate=dates[0], endDate=dates[6];
+  const deptF=$('weekly-dept').value;
+  const [uSnap,aSnap]=await Promise.all([
+    getDocs(query(collection(db,'users_simple'),where('status','==','approved'))),
+    getDocs(query(collection(db,'attendance_simple'),where('date','>=',startDate),where('date','<=',endDate)))
+  ]);
+  let users=[]; uSnap.forEach(d=>users.push({id:d.id,...d.data()}));
+  if(deptF) users=users.filter(u=>u.dept===deptF);
+  const aMap={}; // uid_date → data
+  aSnap.forEach(d=>{ const r=d.data(); aMap[`${r.uid}_${r.date}`]=r; });
+
+  // 통계
+  let totalWork=0,totalLate=0,totalAbsent=0;
+  users.forEach(u=>{ dates.forEach(dt=>{ const a=aMap[`${u.id}_${dt}`]; if(!a) totalAbsent++; else { if(a.lateMin>0) totalLate++; if(a.clockIn&&a.clockOut) totalWork+=Math.round((a.clockOut.toDate()-a.clockIn.toDate())/60000); } }); });
+  $('weekly-stats').innerHTML=`
+    <div class="stat-box"><div class="stat-num" style="color:var(--gray-700)">${users.length}</div><div class="stat-lbl">직원</div></div>
+    <div class="stat-box"><div class="stat-num" style="color:var(--warning)">${totalLate}</div><div class="stat-lbl">지각</div></div>
+    <div class="stat-box"><div class="stat-num" style="color:var(--danger)">${totalAbsent}</div><div class="stat-lbl">미출근</div></div>
+    <div class="stat-box"><div class="stat-num" style="color:var(--primary);font-size:18px;">${Math.floor(totalWork/60)}h</div><div class="stat-lbl">총 근무</div></div>`;
+
+  // 헤더 (이름 | 월 화 수 목 금 토 일 | 합계)
+  const dayNames=['월','화','수','목','금','토','일'];
+  let thead=`<tr><th>이름</th><th>부서</th>`;
+  dates.forEach((dt,i)=>{ const d=new Date(dt+'T00:00:00'); thead+=`<th style="${i>=5?'color:var(--danger)':''}">${d.getDate()}<br>${dayNames[i]}</th>`; });
+  thead+=`<th>근무일</th><th>지각</th><th>총근무</th></tr>`;
+  $('weekly-thead').innerHTML=thead;
+
+  let tbody='';
+  users.sort((a,b)=>(a.dept||'').localeCompare(b.dept||'','ko')).forEach(u=>{
+    let row=`<tr><td>${u.name}</td><td style="font-size:11px;color:var(--gray-400);">${u.dept||'—'}</td>`;
+    let wDays=0,wLate=0,wMin=0;
+    dates.forEach((dt,i)=>{
+      const a=aMap[`${u.id}_${dt}`];
+      const inT=a?.clockIn?fmt(a.clockIn.toDate()):'';
+      const outT=a?.clockOut?fmt(a.clockOut.toDate()):'';
+      let cell='<span style="color:var(--gray-200);">—</span>';
+      if(a?.clockIn){ cell=`<span style="font-size:11px;">${inT}<br>${outT||'재직'}</span>`; wDays++; if(a.lateMin>0){wLate++;cell=`<span style="font-size:11px;color:#92400e;">${inT}🔴<br>${outT||'재직'}</span>`;} if(a.clockOut) wMin+=Math.round((a.clockOut.toDate()-a.clockIn.toDate())/60000); }
+      row+=`<td style="text-align:center;padding:6px 4px;">${cell}</td>`;
+    });
+    row+=`<td style="text-align:center;">${wDays}일</td><td style="text-align:center;color:#92400e;">${wLate}회</td><td style="text-align:center;">${Math.floor(wMin/60)}h${wMin%60}m</td></tr>`;
+    tbody+=row;
+  });
+  $('weekly-tbody').innerHTML=tbody||'<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--gray-400)">직원이 없습니다</td></tr>';
+};
+
+window.exportWeeklyCSV = async () => {
+  const wv=$('weekly-week').value; if(!wv){ toast('주를 선택하세요','error'); return; }
+  const [yw,ww]=wv.split('-W');
+  const jan4=new Date(parseInt(yw),0,4);
+  const weekStart=new Date(jan4); weekStart.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(parseInt(ww)-1)*7);
+  const dates=[]; for(let i=0;i<7;i++){ const d=new Date(weekStart); d.setDate(weekStart.getDate()+i); dates.push(d.toISOString().slice(0,10)); }
+  const snap=await getDocs(query(collection(db,'attendance_simple'),where('date','>=',dates[0]),where('date','<=',dates[6])));
+  const rows=[['이름','부서','날짜','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)']];
+  snap.forEach(d=>{ const r=d.data();
+    const inT=r.clockIn?fmt(r.clockIn.toDate()):'';
+    const outT=r.clockOut?fmt(r.clockOut.toDate()):'';
+    const total=r.clockIn&&r.clockOut?Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000):0;
+    rows.push([r.name,r.dept||'',r.date,inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total]);
+  });
+  dlCSV(rows,`주별근태_${wv}.csv`);
+};
+
+// ── 직원별 조회 ──
+async function loadMemberSelectList(){
+  const snap=await getDocs(query(collection(db,'users_simple'),where('status','==','approved')));
+  let opts='<option value="">직원 선택</option>';
+  const users=[]; snap.forEach(d=>users.push({id:d.id,...d.data()}));
+  users.sort((a,b)=>(a.dept||'').localeCompare(b.dept||'','ko')).forEach(u=>{
+    opts+=`<option value="${u.id}">${u.name} (${u.dept||'부서없음'})</option>`;
+  });
+  $('mr-uid').innerHTML=opts;
+}
+
+window.loadMemberReport = async () => {
+  const uid=$('mr-uid').value; if(!uid) return;
+  const period=$('mr-period').value;
+  const m=$('mr-month').value||nowMonth();
+  if(!$('mr-month').value) $('mr-month').value=m;
+
+  let startDate='', endDate='';
+  if(period==='month'){
+    const [y,mo]=m.split('-');
+    startDate=`${y}-${mo}-01`; endDate=`${y}-${mo}-31`;
+  } else if(period==='week'){
+    const now2=new Date(); const dow2=now2.getDay();
+    const mon2=new Date(now2); mon2.setDate(now2.getDate()-(dow2===0?6:dow2-1)); mon2.setHours(0,0,0,0);
+    startDate=mon2.toISOString().slice(0,10);
+    const sun2=new Date(mon2); sun2.setDate(mon2.getDate()+6);
+    endDate=sun2.toISOString().slice(0,10);
+  } else {
+    // 전체: 최근 1년
+    const now3=new Date(); const yr=new Date(now3); yr.setFullYear(yr.getFullYear()-1);
+    startDate=yr.toISOString().slice(0,10); endDate=now3.toISOString().slice(0,10);
+  }
+
+  const snap=await getDocs(query(collection(db,'attendance_simple'),
+    where('uid','==',uid),where('date','>=',startDate),where('date','<=',endDate),orderBy('date','desc')));
+
+  let totalMin=0,workDays=0,lateCnt=0,earlyC=0,otH=0;
+  let html='';
+  snap.forEach(d=>{ const r=d.data();
+    const inT=r.clockIn?fmt(r.clockIn.toDate()):'—';
+    const outT=r.clockOut?fmt(r.clockOut.toDate()):'—';
+    let mins=0; if(r.clockIn&&r.clockOut){ mins=Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000); totalMin+=mins; }
+    workDays++; if(r.lateMin>0) lateCnt++; if(r.earlyMin>0) earlyC++; otH+=r.otMin||0;
+    const [,, dd]=r.date.split('-'); const dow3=new Date(r.date+'T00:00:00').getDay();
+    const badge=r.lateMin>0?`<span class="badge b-late">지각 +${r.lateMin}분</span>`:r.otMin>0?`<span class="badge b-ot">연장 +${r.otMin}분</span>`:r.earlyMin>0?`<span class="badge b-early">조퇴 -${r.earlyMin}분</span>`:`<span class="badge b-ok">정상</span>`;
+    const gpsStr=r.clockInGps?`<a href="https://maps.google.com/?q=${r.clockInGps.lat},${r.clockInGps.lng}" target="_blank" style="font-size:10px;color:var(--primary);">📍지도</a>`:'—';
+    html+=`<tr><td>${r.date.slice(5)} ${DAYS[dow3]}</td><td>${r.shiftName||'—'}</td><td>${inT}</td><td>${outT}</td>
+      <td>${r.lateMin>0?`+${r.lateMin}분`:'—'}</td>
+      <td>${r.earlyMin>0?`-${r.earlyMin}분`:'—'}</td>
+      <td>${r.otMin>0?`+${r.otMin}분`:'—'}</td>
+      <td>${mins?`${Math.floor(mins/60)}h${mins%60}m`:'—'}</td>
+      <td style="font-size:11px;">${r.clockInIp||'—'}</td>
+      <td>${gpsStr}</td></tr>`;
+  });
+
+  $('mr-summary').innerHTML=`
+    <div class="stat-box"><div class="stat-num" style="color:var(--primary);font-size:20px;">${workDays}</div><div class="stat-lbl">근무일</div></div>
+    <div class="stat-box"><div class="stat-num" style="color:var(--warning);font-size:20px;">${lateCnt}</div><div class="stat-lbl">지각</div></div>
+    <div class="stat-box"><div class="stat-num" style="color:var(--danger);font-size:20px;">${earlyC}</div><div class="stat-lbl">조퇴</div></div>
+    <div class="stat-box"><div class="stat-num" style="color:var(--success);font-size:16px;">${Math.floor(totalMin/60)}h</div><div class="stat-lbl">총 근무</div></div>`;
+  $('mr-tbody').innerHTML=html||'<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--gray-400)">기록이 없습니다</td></tr>';
+};
+
+window.exportMemberCSV = async () => {
+  const uid=$('mr-uid').value; if(!uid){ toast('직원을 선택하세요','error'); return; }
+  const m=$('mr-month').value||nowMonth();
+  const [y,mo]=m.split('-');
+  const snap=await getDocs(query(collection(db,'attendance_simple'),where('uid','==',uid),where('date','>=',`${y}-${mo}-01`),where('date','<=',`${y}-${mo}-31`),orderBy('date','asc')));
+  const rows=[['날짜','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)']];
+  let name='직원';
+  snap.forEach(d=>{ const r=d.data();
+    name=r.name||name;
+    const inT=r.clockIn?fmt(r.clockIn.toDate()):'';
+    const outT=r.clockOut?fmt(r.clockOut.toDate()):'';
+    const total=r.clockIn&&r.clockOut?Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000):0;
+    rows.push([r.date,inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total]);
+  });
+  dlCSV(rows,`${name}_${m}_근무기록.csv`);
+};
+
+// 텔레그램 테스트
+window.testTelegram = async () => {
+  const token=$('set-tg-token').value.trim();
+  const chatId=$('set-tg-chatid').value.trim();
+  if(!token||!chatId){ toast('Token과 Chat ID를 먼저 입력하세요','error'); return; }
+  try {
+    const res=await fetch(`https://api.telegram.org/bot${token}/sendMessage`,{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({chat_id:chatId, text:`✅ <b>[에스한방병원] 텔레그램 연동 성공!</b>\n출퇴근 알림이 정상 작동합니다.`, parse_mode:'HTML'})
+    });
+    const data=await res.json();
+    if(data.ok) toast('✅ 테스트 메시지 전송 성공!','success');
+    else toast('전송 실패: '+data.description,'error');
+  } catch(e){ toast('오류: '+e.message,'error'); }
+};
+
+// 초대 링크
+window.copyInvite = () => {
+  navigator.clipboard.writeText(location.href)
+    .then(()=>toast('초대 링크가 복사됐습니다!','success'))
+    .catch(()=>prompt('링크를 복사하세요:',location.href));
+};
+</script>
+</body>
+</html>
