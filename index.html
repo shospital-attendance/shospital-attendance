@@ -379,10 +379,15 @@ tr:hover td{opacity:0.92;}
     </div>
 
     <!-- 홈 화면 추가 -->
-    <div id="pwa-install-card" style="display:none;">
+    <div id="pwa-install-card">
       <button onclick="installPWA()" style="width:100%;padding:14px;background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff;border:none;border-radius:var(--radius);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 12px rgba(26,107,74,.3);">
         📱 홈 화면에 앱으로 추가하기
       </button>
+      <div id="pwa-ios-guide" style="display:none;margin-top:8px;padding:12px 14px;background:#fff;border-radius:10px;font-size:12px;color:var(--gray-600);line-height:1.8;text-align:center;">
+        📲 <b>iOS(아이폰) 설치 방법</b><br>
+        하단 공유 버튼 <b>□↑</b> 클릭<br>
+        → <b>"홈 화면에 추가"</b> 선택
+      </div>
     </div>
 
     <!-- 보안 정보 카드 -->
@@ -608,10 +613,11 @@ tr:hover td{opacity:0.92;}
         <!-- 3교대 모드 설정 -->
         <div id="shift-settings" style="display:none;">
           <div style="background:var(--primary-light);border-radius:10px;padding:12px;margin-bottom:12px;font-size:12px;color:var(--primary);line-height:1.8;">
-            <b>3교대 자동 인식 시간대</b><br>
-            🌅 데이: 05:00~08:30 출근 → 07:00~15:00<br>
-            🌆 이브닝: 12:30~15:30 출근 → 14:00~22:00<br>
-            🌙 나이트: 19:30~23:00 출근 → 21:00~익일 08:00
+            <b>3교대 자동 선택 기준</b><br>
+            🌅 데이: 06:00부터 자동선택 → 07:00~15:00<br>
+            🌆 이브닝: 13:00부터 자동선택 → 14:00~22:00<br>
+            🌙 나이트: 20:00부터 자동선택 → 21:00~익일 08:00<br>
+            <span style="color:var(--gray-500);font-size:11px;">※ 출근 전 직접 변경 가능 / 오프도 출근 기록 가능</span>
           </div>
           <div class="form-g"><label>지각 기준 (분)</label><input type="number" id="set-late-shift" value="5" min="0" max="30"></div>
         </div>
@@ -921,7 +927,7 @@ window.requestDevice = async () => {
 // ─────────────────────────────────────────────
 // ── 직원 앱 ──
 // ─────────────────────────────────────────────
-function loadEmpPage() {
+async function loadEmpPage() {
   showPage('page-emp');
   const av = $('emp-avatar');
   const photo = meData.photo || me.photoURL;
@@ -936,7 +942,8 @@ function loadEmpPage() {
   checkNetwork();
   updateShiftBanner();
   loadSecurityInfo();
-  // 3교대 모드면 교대 선택 UI 표시 + 자동 감지
+  // 설정 다시 로드 후 교대 선택 UI 표시
+  await loadSettings();
   const shiftWrap=$('shift-select-wrap');
   if(shiftWrap) shiftWrap.style.display=settings.mode==='shift'?'block':'none';
   if(settings.mode==='shift') autoDetectAndSelectShift();
@@ -973,22 +980,59 @@ window.addEventListener('beforeinstallprompt', (e) => {
   if(card) card.style.display = 'block';
 });
 window.installPWA = async () => {
-  if(!deferredPrompt){
-    // iOS 안내
-    toast('Safari에서 공유 버튼 → "홈 화면에 추가" 를 눌러주세요!','success');
+  // 안드로이드 - 브라우저 설치 프롬프트
+  if(deferredPrompt){
+    deferredPrompt.prompt();
+    const {outcome} = await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    if(outcome==='accepted'){
+      toast('홈 화면에 추가됐습니다! 🎉','success');
+    }
     return;
   }
-  deferredPrompt.prompt();
-  const {outcome} = await deferredPrompt.userChoice;
-  deferredPrompt = null;
-  if(outcome==='accepted'){
-    $('pwa-install-card').style.display='none';
-    toast('홈 화면에 추가됐습니다! 🎉','success');
+  // iOS 감지
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const isInStandaloneMode = window.matchMedia('(display-mode: standalone)').matches;
+  if(isInStandaloneMode){
+    toast('이미 홈 화면에 추가되어 있습니다 ✓','success');
+    return;
   }
+  if(isIOS){
+    // iOS Safari 안내 팝업
+    const msg = document.createElement('div');
+    msg.innerHTML = `<div style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:flex-end;justify-content:center;">
+      <div style="background:#fff;border-radius:20px 20px 0 0;padding:24px;width:100%;max-width:480px;">
+        <div style="font-size:16px;font-weight:700;margin-bottom:12px;">📱 홈 화면에 추가하기</div>
+        <div style="font-size:14px;color:var(--gray-600);line-height:1.8;">
+          <b>Safari</b> 브라우저에서:<br>
+          1. 하단 <b>공유 버튼 (□↑)</b> 탭<br>
+          2. <b>"홈 화면에 추가"</b> 선택<br>
+          3. <b>"추가"</b> 탭
+        </div>
+        <div style="font-size:12px;color:var(--gray-400);margin-top:10px;">* Safari가 아닌 다른 브라우저는 먼저 Safari로 열어주세요</div>
+        <button onclick="this.closest('div[style]').remove()" style="width:100%;margin-top:16px;padding:14px;background:var(--primary);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;">확인</button>
+      </div>
+    </div>`;
+    document.body.appendChild(msg);
+    return;
+  }
+  // 안드로이드 크롬 - 수동 안내
+  const msg2 = document.createElement('div');
+  msg2.innerHTML = `<div style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:flex-end;justify-content:center;">
+    <div style="background:#fff;border-radius:20px 20px 0 0;padding:24px;width:100%;max-width:480px;">
+      <div style="font-size:16px;font-weight:700;margin-bottom:12px;">📱 홈 화면에 추가하기</div>
+      <div style="font-size:14px;color:var(--gray-600);line-height:1.8;">
+        <b>Chrome</b> 브라우저에서:<br>
+        1. 우측 상단 <b>⋮ 메뉴</b> 탭<br>
+        2. <b>"앱 설치"</b> 또는 <b>"홈 화면에 추가"</b> 선택
+      </div>
+      <button onclick="this.closest('div[style]').remove()" style="width:100%;margin-top:16px;padding:14px;background:var(--primary);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;">확인</button>
+    </div>
+  </div>`;
+  document.body.appendChild(msg2);
 };
 window.addEventListener('appinstalled', () => {
-  const card=$('pwa-install-card');
-  if(card) card.style.display='none';
+  toast('홈 화면에 추가됐습니다! 🎉','success');
 });
 
 // ── 보안 정보 로드 ──
@@ -1194,8 +1238,9 @@ async function loadTodayAtt() {
     $('t-in').textContent = fmt(t); $('t-in').classList.remove('empty');
     $('s-in').innerHTML = d.lateMin>0 ? `<span class="badge b-late">지각 +${d.lateMin}분</span>` : `<span class="badge b-ok">정상</span>`;
     $('btn-in').className = 'btn-clock btn-cdone'; $('btn-in').textContent = '출근 완료 ✓';
-  }
+    const sw3=$('shift-select-wrap'); if(sw3) sw3.style.display='none';
     if(!d.clockOut){ const bci=$('btn-cancel-in'); if(bci) bci.style.display='block'; }
+  }
   if (d.clockOut) {
     const t = d.clockOut.toDate();
     $('t-out').textContent = fmt(t); $('t-out').classList.remove('empty');
