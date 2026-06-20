@@ -148,11 +148,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
 
 /* 테이블 */
 .tbl-wrap{background:#fff;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);overflow-x:auto;}
-table{width:100%;border-collapse:collapse;font-size:13px;min-width:480px;}
-th{padding:10px 12px;text-align:left;color:var(--gray-400);font-size:11px;font-weight:600;background:var(--gray-50);border-bottom:1px solid var(--gray-200);white-space:nowrap;}
-td{padding:10px 12px;border-bottom:1px solid var(--gray-100);color:var(--gray-700);white-space:nowrap;}
+table{width:100%;border-collapse:collapse;font-size:14px;min-width:480px;}
+th{padding:12px 14px;text-align:left;color:var(--gray-500);font-size:12px;font-weight:600;background:var(--gray-50);border-bottom:1px solid var(--gray-200);white-space:nowrap;}
+td{padding:12px 14px;border-bottom:1px solid var(--gray-100);color:var(--gray-800);white-space:nowrap;}
 tr:last-child td{border-bottom:none;}
-tr:hover td{background:var(--gray-50);}
+tr:hover td{opacity:0.92;}
 
 /* 모달 */
 .modal-back{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:flex-end;justify-content:center;}
@@ -1289,7 +1289,7 @@ window.loadToday = async () => {
   const shiftGroups = {
     '데이':   { icon:'🌅', bg:'#fff7ed', border:'#fb923c', timeStr:'07:00 ~ 15:00', users:[], dark:false },
     '이브닝': { icon:'🌆', bg:'#eff6ff', border:'#3b82f6', timeStr:'14:00 ~ 22:00', users:[], dark:false },
-    '나이트': { icon:'🌙', bg:'#1e1b4b', border:'#818cf8', timeStr:'21:00 ~ 08:00', users:[], dark:true  },
+    '나이트': { icon:'🌙', bg:'#eef2ff', border:'#6366f1', timeStr:'21:00 ~ 08:00', users:[], dark:false },
     '기타':   { icon:'📋', bg:'#f9fafb', border:'#d1d5db', timeStr:'기타 / 미배정',  users:[], dark:false },
   };
 
@@ -1303,18 +1303,18 @@ window.loadToday = async () => {
   let html='';
   Object.entries(shiftGroups).forEach(([key,grp])=>{
     if(!grp.users.length) return;
-    const nameColor = grp.dark?'#e0e7ff':'var(--gray-900)';
-    const deptColor = grp.dark?'#a5b4fc':'var(--gray-500)';
-    const totalColor= grp.dark?'#818cf8':'var(--primary)';
+    const nameColor = 'var(--gray-900)';
+    const deptColor = 'var(--gray-500)';
+    const totalColor= 'var(--primary)';
     html+=`<tr>
       <td colspan="7" style="padding:10px 14px 8px;background:${grp.bg};border-top:3px solid ${grp.border};border-bottom:1px solid ${grp.border}30;">
         <div style="display:flex;align-items:center;gap:10px;">
           <span style="font-size:20px;">${grp.icon}</span>
           <div>
-            <span style="font-size:14px;font-weight:700;color:${grp.dark?'#c7d2fe':'var(--gray-800)'};">${key}</span>
+            <span style="font-size:14px;font-weight:700;color:var(--gray-800);">${key}</span>
             <span style="font-size:12px;color:${deptColor};margin-left:8px;">${grp.timeStr}</span>
           </div>
-          <span style="margin-left:auto;font-size:12px;font-weight:600;background:${grp.border}30;color:${grp.dark?'#c7d2fe':'var(--gray-700)'};padding:2px 10px;border-radius:10px;">${grp.users.length}명</span>
+          <span style="margin-left:auto;font-size:12px;font-weight:600;background:${grp.border}30;color:var(--gray-700);padding:2px 10px;border-radius:10px;">${grp.users.length}명</span>
         </div>
       </td>
     </tr>`;
