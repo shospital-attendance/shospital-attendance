@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="에스한방 출퇴근">
 <meta name="theme-color" content="#1a6b4a">
 <title>에스한방병원 출퇴근</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏥</text></svg>">
 <style>
 :root {
   --primary:#1a6b4a; --primary-dark:#0f4c2e; --primary-light:#e8f5ee;
@@ -203,7 +204,7 @@ tr:hover td{background:var(--gray-50);}
       <div style="color:rgba(255,255,255,.6);font-size:13px;margin-top:4px;">어떤 화면으로 이동할까요?</div>
     </div>
     <div style="width:100%;max-width:320px;display:flex;flex-direction:column;gap:12px;">
-      <button onclick="goEmp()" style="padding:20px;background:#fff;border:none;border-radius:16px;cursor:pointer;display:flex;align-items:center;gap:16px;box-shadow:0 4px 20px rgba(0,0,0,.15);">
+      <button onclick="window.goEmp()" style="padding:20px;background:#fff;border:none;border-radius:16px;cursor:pointer;display:flex;align-items:center;gap:16px;box-shadow:0 4px 20px rgba(0,0,0,.15);">
         <div style="font-size:36px;">👤</div>
         <div style="text-align:left;">
           <div style="font-size:16px;font-weight:700;color:var(--gray-900);">출퇴근</div>
@@ -211,7 +212,7 @@ tr:hover td{background:var(--gray-50);}
         </div>
         <div style="margin-left:auto;color:var(--gray-300);font-size:20px;">›</div>
       </button>
-      <button onclick="goAdmin()" style="padding:20px;background:var(--primary);border:none;border-radius:16px;cursor:pointer;display:flex;align-items:center;gap:16px;box-shadow:0 4px 20px rgba(26,107,74,.4);">
+      <button onclick="window.goAdmin()" style="padding:20px;background:var(--primary);border:none;border-radius:16px;cursor:pointer;display:flex;align-items:center;gap:16px;box-shadow:0 4px 20px rgba(26,107,74,.4);">
         <div style="font-size:36px;">⚙️</div>
         <div style="text-align:left;">
           <div style="font-size:16px;font-weight:700;color:#fff;">관리자</div>
@@ -280,7 +281,7 @@ tr:hover td{background:var(--gray-50);}
       </div>
     </div>
     <div style="display:flex;gap:6px;">
-      <button id="btn-go-admin" onclick="loadAdminPage()" style="display:none;background:rgba(255,255,255,.15);border:none;color:#fff;padding:7px 13px;border-radius:8px;font-size:12px;cursor:pointer;">⚙️ 관리</button>
+      <button id="btn-go-admin" onclick="window.loadAdminPage()" style="display:none;background:rgba(255,255,255,.15);border:none;color:#fff;padding:7px 13px;border-radius:8px;font-size:12px;cursor:pointer;">⚙️ 관리</button>
       <button onclick="doSignOut()" style="background:rgba(255,255,255,.15);border:none;color:#fff;padding:7px 13px;border-radius:8px;font-size:12px;cursor:pointer;">로그아웃</button>
     </div>
   </div>
@@ -387,7 +388,7 @@ tr:hover td{background:var(--gray-50);}
   <div class="admin-header">
     <h1>🏥 에스한방 출퇴근 관리</h1>
     <div style="display:flex;gap:6px;">
-      <button class="btn-sm" onclick="loadEmpPage()">👤 출퇴근</button>
+      <button class="btn-sm" onclick="window.loadEmpPage()">👤 출퇴근</button>
       <button class="btn-sm" onclick="doSignOut()">로그아웃</button>
     </div>
   </div>
@@ -679,6 +680,10 @@ function showSelectPage() {
 
 window.goEmp = () => loadEmpPage();
 window.goAdmin = () => loadAdminPage();
+// HTML onclick에서 직접 호출 가능하게 등록
+window.loadAdminPage = loadAdminPage;
+window.loadEmpPage = loadEmpPage;
+window.showSelectPage = showSelectPage;
 
 // ── 텔레그램 알림 ──
 async function sendTelegram(msg) {
