@@ -194,6 +194,36 @@ tr:hover td{background:var(--gray-50);}
   </div>
 </div>
 
+<!-- 관리자 모드 선택 -->
+<div id="page-select" class="page">
+  <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(160deg,#0a3320,var(--primary));padding:24px;">
+    <div style="text-align:center;margin-bottom:32px;">
+      <div style="font-size:48px;margin-bottom:12px;">🏥</div>
+      <div style="color:#fff;font-size:20px;font-weight:700;" id="select-name"></div>
+      <div style="color:rgba(255,255,255,.6);font-size:13px;margin-top:4px;">어떤 화면으로 이동할까요?</div>
+    </div>
+    <div style="width:100%;max-width:320px;display:flex;flex-direction:column;gap:12px;">
+      <button onclick="goEmp()" style="padding:20px;background:#fff;border:none;border-radius:16px;cursor:pointer;display:flex;align-items:center;gap:16px;box-shadow:0 4px 20px rgba(0,0,0,.15);">
+        <div style="font-size:36px;">👤</div>
+        <div style="text-align:left;">
+          <div style="font-size:16px;font-weight:700;color:var(--gray-900);">출퇴근</div>
+          <div style="font-size:12px;color:var(--gray-400);margin-top:2px;">내 출퇴근 기록하기</div>
+        </div>
+        <div style="margin-left:auto;color:var(--gray-300);font-size:20px;">›</div>
+      </button>
+      <button onclick="goAdmin()" style="padding:20px;background:var(--primary);border:none;border-radius:16px;cursor:pointer;display:flex;align-items:center;gap:16px;box-shadow:0 4px 20px rgba(26,107,74,.4);">
+        <div style="font-size:36px;">⚙️</div>
+        <div style="text-align:left;">
+          <div style="font-size:16px;font-weight:700;color:#fff;">관리자</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.7);margin-top:2px;">직원 현황 및 관리</div>
+        </div>
+        <div style="margin-left:auto;color:rgba(255,255,255,.5);font-size:20px;">›</div>
+      </button>
+    </div>
+    <button onclick="doSignOut()" style="margin-top:24px;background:none;border:none;color:rgba(255,255,255,.5);font-size:13px;cursor:pointer;">로그아웃</button>
+  </div>
+</div>
+
 <!-- 이름 입력 -->
 <div id="page-setname" class="page">
   <div class="setname-card">
@@ -249,7 +279,10 @@ tr:hover td{background:var(--gray-50);}
         <div class="h-dept" id="emp-dept"></div>
       </div>
     </div>
-    <button onclick="doSignOut()" style="background:rgba(255,255,255,.15);border:none;color:#fff;padding:7px 13px;border-radius:8px;font-size:12px;cursor:pointer;">로그아웃</button>
+    <div style="display:flex;gap:6px;">
+      <button id="btn-go-admin" onclick="showSelectPage()" style="display:none;background:rgba(255,255,255,.15);border:none;color:#fff;padding:7px 13px;border-radius:8px;font-size:12px;cursor:pointer;">⚙️ 관리</button>
+      <button onclick="doSignOut()" style="background:rgba(255,255,255,.15);border:none;color:#fff;padding:7px 13px;border-radius:8px;font-size:12px;cursor:pointer;">로그아웃</button>
+    </div>
   </div>
   <div class="emp-body">
     <!-- 시계 -->
@@ -348,7 +381,10 @@ tr:hover td{background:var(--gray-50);}
 <div id="page-admin" class="page">
   <div class="admin-header">
     <h1>🏥 에스한방 출퇴근 관리</h1>
-    <button class="btn-sm" onclick="doSignOut()">로그아웃</button>
+    <div style="display:flex;gap:6px;">
+      <button class="btn-sm" onclick="showSelectPage()">👤 출퇴근</button>
+      <button class="btn-sm" onclick="doSignOut()">로그아웃</button>
+    </div>
   </div>
   <div class="admin-tabs">
     <div class="a-tab on" onclick="switchTab('today',this)">오늘 현황</div>
@@ -625,6 +661,16 @@ function getDeviceId() {
   return id;
 }
 
+// ── 관리자 모드 선택 ──
+function showSelectPage() {
+  showPage('page-select');
+  const nameEl=$('select-name');
+  if(nameEl) nameEl.textContent=meData.name||me.displayName||'';
+}
+
+window.goEmp = () => loadEmpPage();
+window.goAdmin = () => loadAdminPage();
+
 // ── 텔레그램 알림 ──
 async function sendTelegram(msg) {
   try {
@@ -731,7 +777,7 @@ onAuthStateChanged(auth, async user => {
   }
 
   // 관리자 vs 직원
-  if (meData.role === 'admin' || meData.role === 'superadmin') loadAdminPage();
+  if (meData.role === 'admin' || meData.role === 'superadmin') showSelectPage();
   else loadEmpPage();
 });
 
@@ -788,6 +834,9 @@ function loadEmpPage() {
   else       av.textContent = (meData.name||'?')[0];
   $('emp-name').textContent = meData.name;
   $('emp-dept').textContent = meData.dept || '';
+  // 관리자면 상단에 관리 버튼 표시
+  const adminBtn=$('btn-go-admin');
+  if(adminBtn) adminBtn.style.display=(meData.role==='admin'||meData.role==='superadmin')?'block':'none';
   startClock();
   checkNetwork();
   updateShiftBanner();
@@ -1009,12 +1058,14 @@ window.clockIn = async () => {
     bi.textContent='출근 완료 ✓';
     $('btn-out').className='btn-clock btn-cout'; $('btn-out').textContent='퇴근';
     toast('출근 완료! ✓','success');
-    // 지각 시 텔레그램 알림
+    const timeStr2 = fmt(now);
+    const shiftLabel2 = shiftName||'일반';
     if(lateMin > 0){
-      const now2 = new Date();
-      const timeStr = fmt(now2);
-      const shiftLabel = shiftName||'일반';
-      await sendTelegram(`🟡 <b>[에스한방병원] 지각 출근</b>\n👤 ${meData.name} (${meData.dept||''})\n⏰ ${timeStr} 출근 (지각 ${lateMin}분)\n📋 ${shiftLabel} 근무\n📅 ${shiftDate}`);
+      // 지각 알림
+      await sendTelegram(`🟡 <b>[에스한방병원] 지각 출근</b>\n👤 ${meData.name} (${meData.dept||''})\n⏰ ${timeStr2} 출근 (지각 ${lateMin}분)\n📋 ${shiftLabel2} 근무\n📅 ${shiftDate}`);
+    } else {
+      // 정상 출근 알림
+      await sendTelegram(`✅ <b>[에스한방병원] 출근</b>\n👤 ${meData.name} (${meData.dept||''})\n⏰ ${timeStr2} 출근\n📋 ${shiftLabel2} 근무\n📅 ${shiftDate}`);
     }
     loadWeek();
   } catch(e) { toast('오류: '+e.message,'error'); bi.className='btn-clock btn-cin'; bi.textContent='출근'; }
@@ -1069,6 +1120,21 @@ window.clockOut = async () => {
     const mins=Math.round((now-d.clockIn.toDate())/60000);
     const tb=$('total-box'); tb.textContent=`오늘 총 근무: ${Math.floor(mins/60)}시간 ${mins%60}분`; tb.style.display='block';
     toast('퇴근 완료! ✓','success');
+    const outTimeStr = fmt(now);
+    const shiftLabelOut = d.shiftName||'일반';
+    const mins2 = Math.round((now - d.clockIn.toDate()) / 60000);
+    const workHour = Math.floor(mins2/60);
+    const workMin2 = mins2%60;
+    if(otMin > 0){
+      // 연장근무 알림
+      await sendTelegram(`🔵 <b>[에스한방병원] 연장근무 퇴근</b>\n👤 ${meData.name} (${meData.dept||''})\n⏰ ${outTimeStr} 퇴근 (연장 ${otMin}분)\n📋 ${shiftLabelOut} 근무 · 총 ${workHour}h ${workMin2}m\n📅 ${targetDate}`);
+    } else if(earlyMin > 0){
+      // 조퇴 알림
+      await sendTelegram(`🟠 <b>[에스한방병원] 조퇴</b>\n👤 ${meData.name} (${meData.dept||''})\n⏰ ${outTimeStr} 퇴근 (조퇴 ${earlyMin}분)\n📋 ${shiftLabelOut} 근무 · 총 ${workHour}h ${workMin2}m\n📅 ${targetDate}`);
+    } else {
+      // 정상 퇴근 알림
+      await sendTelegram(`🏠 <b>[에스한방병원] 퇴근</b>\n👤 ${meData.name} (${meData.dept||''})\n⏰ ${outTimeStr} 퇴근\n📋 ${shiftLabelOut} 근무 · 총 ${workHour}h ${workMin2}m\n📅 ${targetDate}`);
+    }
     loadWeek();
   } catch(e) { toast('오류: '+e.message,'error'); bo.className='btn-clock btn-cout'; bo.textContent='퇴근'; }
 };
@@ -1150,17 +1216,7 @@ window.loadToday = async () => {
   users.forEach(u=>{ const a=aMap[u.uid]; if(!a) absent++; else if(a.lateMin>0) late++; else ok++; });
   $('s-total').textContent=users.length; $('s-ok').textContent=ok; $('s-late').textContent=late; $('s-absent').textContent=absent;
   $('last-update').textContent=`갱신: ${fmt(new Date())}`;
-  // 미출근 텔레그램 (하루 1회, 출근 마감 시간 이후에만)
-  const nowH = new Date().getHours();
-  const absKey = `absent_notified_${td}`;
-  if(nowH >= 10 && !sessionStorage.getItem(absKey)){
-    const absentList = users.filter(u=>!aMap[u.uid]);
-    if(absentList.length > 0){
-      const names = absentList.map(u=>`• ${u.name} (${u.dept||''})`).join('\n');
-      await sendTelegram(`🔴 <b>[에스한방병원] 미출근 알림</b>\n⚠️ ${fmt(new Date())} 현재 미출근 ${absentList.length}명\n\n${names}\n\n📅 ${td}`);
-      sessionStorage.setItem(absKey,'1');
-    }
-  }
+
   let html='';
   users.sort((a,b)=>(a.dept||'').localeCompare(b.dept||'','ko')).forEach(u=>{
     const a=aMap[u.uid];
