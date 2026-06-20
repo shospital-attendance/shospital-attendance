@@ -280,7 +280,7 @@ tr:hover td{background:var(--gray-50);}
       </div>
     </div>
     <div style="display:flex;gap:6px;">
-      <button id="btn-go-admin" onclick="showSelectPage()" style="display:none;background:rgba(255,255,255,.15);border:none;color:#fff;padding:7px 13px;border-radius:8px;font-size:12px;cursor:pointer;">⚙️ 관리</button>
+      <button id="btn-go-admin" onclick="loadAdminPage()" style="display:none;background:rgba(255,255,255,.15);border:none;color:#fff;padding:7px 13px;border-radius:8px;font-size:12px;cursor:pointer;">⚙️ 관리</button>
       <button onclick="doSignOut()" style="background:rgba(255,255,255,.15);border:none;color:#fff;padding:7px 13px;border-radius:8px;font-size:12px;cursor:pointer;">로그아웃</button>
     </div>
   </div>
@@ -314,6 +314,11 @@ tr:hover td{background:var(--gray-50);}
       <div class="clock-btns">
         <button class="btn-clock btn-coff" id="btn-in" onclick="clockIn()">출근</button>
         <button class="btn-clock btn-coff" id="btn-out" onclick="clockOut()">퇴근</button>
+      </div>
+      <!-- 취소 버튼 -->
+      <div id="cancel-btns" style="display:none;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+        <button id="btn-cancel-in" onclick="cancelClockIn()" style="display:none;padding:10px;border:1.5px solid var(--danger);border-radius:10px;background:var(--danger-light);color:var(--danger);font-size:13px;font-weight:600;cursor:pointer;">✕ 출근 취소</button>
+        <button id="btn-cancel-out" onclick="cancelClockOut()" style="display:none;padding:10px;border:1.5px solid var(--warning);border-radius:10px;background:var(--warning-light);color:#92400e;font-size:13px;font-weight:600;cursor:pointer;">✕ 퇴근 취소</button>
       </div>
       <div class="total-box" id="total-box"></div>
     </div>
@@ -382,7 +387,7 @@ tr:hover td{background:var(--gray-50);}
   <div class="admin-header">
     <h1>🏥 에스한방 출퇴근 관리</h1>
     <div style="display:flex;gap:6px;">
-      <button class="btn-sm" onclick="showSelectPage()">👤 출퇴근</button>
+      <button class="btn-sm" onclick="loadEmpPage()">👤 출퇴근</button>
       <button class="btn-sm" onclick="doSignOut()">로그아웃</button>
     </div>
   </div>
@@ -415,7 +420,7 @@ tr:hover td{background:var(--gray-50);}
       </div>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>이름</th><th>부서</th><th>교대</th><th>출근</th><th>퇴근</th><th>상태</th><th>총 근무</th><th>수정</th></tr></thead>
+          <thead><tr><th>이름</th><th>부서</th><th>출근</th><th>퇴근</th><th>상태</th><th>총 근무</th><th>수정</th></tr></thead>
           <tbody id="today-tbody"></tbody>
         </table>
       </div>
@@ -591,6 +596,10 @@ tr:hover td{background:var(--gray-50);}
     <div class="form-g"><label>부서</label><input type="text" id="mem-dept" placeholder="예: 3층 병동, 원무과"></div>
     <div class="form-g"><label>개인 출근 시간 (빈칸 = 병원 기본값 사용)</label><input type="time" id="mem-in"></div>
     <div class="form-g"><label>개인 퇴근 시간</label><input type="time" id="mem-out"></div>
+    <div class="form-g">
+      <label>기기 정보</label>
+      <div id="mem-device-info" style="padding:10px 12px;background:var(--gray-50);border-radius:8px;font-size:12px;color:var(--gray-500);line-height:1.8;word-break:break-all;"></div>
+    </div>
     <div class="form-g" id="mem-role-wrap">
       <label>권한</label>
       <select id="mem-role">
@@ -991,6 +1000,7 @@ async function loadTodayAtt() {
     $('s-in').innerHTML = d.lateMin>0 ? `<span class="badge b-late">지각 +${d.lateMin}분</span>` : `<span class="badge b-ok">정상</span>`;
     $('btn-in').className = 'btn-clock btn-cdone'; $('btn-in').textContent = '출근 완료 ✓';
   }
+    if(!d.clockOut){ const bci=$('btn-cancel-in'); if(bci) bci.style.display='block'; }
   if (d.clockOut) {
     const t = d.clockOut.toDate();
     $('t-out').textContent = fmt(t); $('t-out').classList.remove('empty');
@@ -998,6 +1008,8 @@ async function loadTodayAtt() {
     $('btn-out').className = 'btn-clock btn-cdone'; $('btn-out').textContent = '퇴근 완료 ✓';
     const mins = Math.round((d.clockOut.toDate()-d.clockIn.toDate())/60000);
     const tb=$('total-box'); tb.textContent=`오늘 총 근무: ${Math.floor(mins/60)}시간 ${mins%60}분`; tb.style.display='block';
+    const bco=$('btn-cancel-out'); if(bco) bco.style.display='block';
+    const bci2=$('btn-cancel-in'); if(bci2) bci2.style.display='none';
   } else if (d.clockIn) {
     // 출근만 한 상태
     $('btn-out').className = 'btn-clock btn-cout'; $('btn-out').textContent = '퇴근';
@@ -1010,6 +1022,54 @@ function updateBtns() {
   bi.className = isNetOk ? 'btn-clock btn-cin' : 'btn-clock btn-coff';
   if (!bo.textContent.includes('완료')) bo.className = isNetOk ? 'btn-clock btn-coff' : 'btn-clock btn-coff'; // 출근 전 퇴근 비활성
 }
+
+// ── 출근 취소 ──
+window.cancelClockIn = async () => {
+  if(!confirm('⚠️ 출근 기록을 취소하시겠습니까?\n\n취소하면 오늘 출근 기록이 삭제되고\n출퇴근 버튼이 초기화됩니다.\n\n부정 취소는 관리자에게 기록됩니다.')) return;
+  let checkDate = today();
+  if(settings.mode==='shift'){
+    const m2=new Date().getHours()*60+new Date().getMinutes();
+    if(m2<=8*60+30){ const y=new Date(); y.setDate(y.getDate()-1); checkDate=y.toISOString().slice(0,10); }
+  }
+  try {
+    await deleteDoc(doc(db,'attendance_simple',`${me.uid}_${checkDate}`));
+    // UI 초기화
+    $('t-in').textContent='--:--'; $('t-in').classList.add('empty');
+    $('t-out').textContent='--:--'; $('t-out').classList.add('empty');
+    $('s-in').innerHTML=''; $('s-out').innerHTML='';
+    $('btn-in').className='btn-clock btn-cin'; $('btn-in').textContent='출근';
+    $('btn-out').className='btn-clock btn-coff'; $('btn-out').textContent='퇴근';
+    $('btn-cancel-in').style.display='none';
+    $('btn-cancel-out').style.display='none';
+    $('total-box').style.display='none';
+    toast('출근 기록이 취소됐습니다','success');
+    await loadWeek();
+  } catch(e){ toast('오류: '+e.message,'error'); }
+};
+
+// ── 퇴근 취소 ──
+window.cancelClockOut = async () => {
+  if(!confirm('⚠️ 퇴근 기록을 취소하시겠습니까?\n\n취소하면 퇴근 시간이 삭제되고\n출근 상태로 돌아갑니다.\n\n부정 취소는 관리자에게 기록됩니다.')) return;
+  let checkDate = today();
+  if(settings.mode==='shift'){
+    const m2=new Date().getHours()*60+new Date().getMinutes();
+    if(m2<=8*60+30){ const y=new Date(); y.setDate(y.getDate()-1); checkDate=y.toISOString().slice(0,10); }
+  }
+  try {
+    await updateDoc(doc(db,'attendance_simple',`${me.uid}_${checkDate}`),{
+      clockOut:null, earlyMin:0, otMin:0
+    });
+    // UI 초기화
+    $('t-out').textContent='--:--'; $('t-out').classList.add('empty');
+    $('s-out').innerHTML='';
+    $('btn-out').className='btn-clock btn-cout'; $('btn-out').textContent='퇴근';
+    $('btn-cancel-out').style.display='none';
+    $('btn-cancel-in').style.display='block';
+    $('total-box').style.display='none';
+    toast('퇴근 기록이 취소됐습니다','success');
+    await loadWeek();
+  } catch(e){ toast('오류: '+e.message,'error'); }
+};
 
 // 출근
 window.clockIn = async () => {
@@ -1057,6 +1117,7 @@ window.clockIn = async () => {
       (lateMin>0?`<span class="badge b-late">지각 +${lateMin}분</span>`:`<span class="badge b-ok">정상</span>`);
     bi.textContent='출근 완료 ✓';
     $('btn-out').className='btn-clock btn-cout'; $('btn-out').textContent='퇴근';
+    const bciShow=$('btn-cancel-in'); if(bciShow) bciShow.style.display='block';
     toast('출근 완료! ✓','success');
     const timeStr2 = fmt(now);
     const shiftLabel2 = shiftName||'일반';
@@ -1117,6 +1178,8 @@ window.clockOut = async () => {
     $('t-out').textContent=fmt(now); $('t-out').classList.remove('empty');
     $('s-out').innerHTML=otMin>0?`<span class="badge b-ot">연장 +${otMin}분</span>`:earlyMin>0?`<span class="badge b-early">조퇴 -${earlyMin}분</span>`:`<span class="badge b-ok">정상</span>`;
     bo.textContent='퇴근 완료 ✓';
+    const bcoShow=$('btn-cancel-out'); if(bcoShow) bcoShow.style.display='block';
+    const bciHide=$('btn-cancel-in'); if(bciHide) bciHide.style.display='none';
     const mins=Math.round((now-d.clockIn.toDate())/60000);
     const tb=$('total-box'); tb.textContent=`오늘 총 근무: ${Math.floor(mins/60)}시간 ${mins%60}분`; tb.style.display='block';
     toast('퇴근 완료! ✓','success');
@@ -1217,21 +1280,71 @@ window.loadToday = async () => {
   $('s-total').textContent=users.length; $('s-ok').textContent=ok; $('s-late').textContent=late; $('s-absent').textContent=absent;
   $('last-update').textContent=`갱신: ${fmt(new Date())}`;
 
-  let html='';
-  users.sort((a,b)=>(a.dept||'').localeCompare(b.dept||'','ko')).forEach(u=>{
+  // 교대별 그룹핑
+  const shiftGroups = {
+    '데이':   { icon:'🌅', bg:'#fff7ed', border:'#fb923c', timeStr:'07:00 ~ 15:00', users:[], dark:false },
+    '이브닝': { icon:'🌆', bg:'#eff6ff', border:'#3b82f6', timeStr:'14:00 ~ 22:00', users:[], dark:false },
+    '나이트': { icon:'🌙', bg:'#1e1b4b', border:'#818cf8', timeStr:'21:00 ~ 08:00', users:[], dark:true  },
+    '기타':   { icon:'📋', bg:'#f9fafb', border:'#d1d5db', timeStr:'기타 / 미배정',  users:[], dark:false },
+  };
+
+  users.forEach(u=>{
     const a=aMap[u.uid];
-    const inT=a?.clockIn?fmt(a.clockIn.toDate()):'—';
-    const outT=a?.clockOut?fmt(a.clockOut.toDate()):'—';
-    const status=!a?`<span class="badge b-none">미출근</span>`:a.lateMin>0?`<span class="badge b-late">지각 +${a.lateMin}분</span>`:a.otMin>0?`<span class="badge b-ot">연장</span>`:`<span class="badge b-ok">정상</span>`;
-    let totalStr='—';
-    if(a?.clockIn&&a?.clockOut){ const mins=Math.round((a.clockOut.toDate()-a.clockIn.toDate())/60000); totalStr=`${Math.floor(mins/60)}h ${mins%60}m`; }
-    const shiftLabel=a?.shiftName?`<span style="font-size:11px;font-weight:600;color:var(--primary);">${a.shiftName}</span>`:'—';
-    html+=`<tr><td>${u.name}</td><td>${u.dept||'—'}</td><td>${shiftLabel}</td><td>${inT}</td><td>${outT}</td><td>${status}</td><td>${totalStr}</td><td><button class="btn-sm" onclick="openEdit('${u.id}','${u.name}','${td}','${inT}','${outT}')">수정</button></td></tr>`;
+    const sn=a?.shiftName;
+    const key = sn==='데이'?'데이':sn==='이브닝'?'이브닝':sn==='나이트'?'나이트':'기타';
+    shiftGroups[key].users.push({u,a});
   });
-  $('today-tbody').innerHTML=html||'<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--gray-400)">직원이 없습니다</td></tr>';
+
+  let html='';
+  Object.entries(shiftGroups).forEach(([key,grp])=>{
+    if(!grp.users.length) return;
+    const nameColor = grp.dark?'#e0e7ff':'var(--gray-900)';
+    const deptColor = grp.dark?'#a5b4fc':'var(--gray-500)';
+    const totalColor= grp.dark?'#818cf8':'var(--primary)';
+    html+=`<tr>
+      <td colspan="7" style="padding:10px 14px 8px;background:${grp.bg};border-top:3px solid ${grp.border};border-bottom:1px solid ${grp.border}30;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:20px;">${grp.icon}</span>
+          <div>
+            <span style="font-size:14px;font-weight:700;color:${grp.dark?'#c7d2fe':'var(--gray-800)'};">${key}</span>
+            <span style="font-size:12px;color:${deptColor};margin-left:8px;">${grp.timeStr}</span>
+          </div>
+          <span style="margin-left:auto;font-size:12px;font-weight:600;background:${grp.border}30;color:${grp.dark?'#c7d2fe':'var(--gray-700)'};padding:2px 10px;border-radius:10px;">${grp.users.length}명</span>
+        </div>
+      </td>
+    </tr>`;
+    grp.users.sort((a,b)=>(a.u.dept||'').localeCompare(b.u.dept||'','ko')).forEach(({u,a})=>{
+      const inT=a?.clockIn?fmt(a.clockIn.toDate()):'—';
+      const outT=a?.clockOut?fmt(a.clockOut.toDate()):'—';
+      const status=!a
+        ?`<span class="badge b-none">미출근</span>`
+        :a.lateMin>0?`<span class="badge b-late">지각 +${a.lateMin}분</span>`
+        :a.earlyMin>0?`<span class="badge b-early">조퇴 -${a.earlyMin}분</span>`
+        :a.otMin>0?`<span class="badge b-ot">연장 +${a.otMin}분</span>`
+        :`<span class="badge b-ok">정상</span>`;
+      let totalStr='—';
+      if(a?.clockIn&&a?.clockOut){
+        const mins=Math.round((a.clockOut.toDate()-a.clockIn.toDate())/60000);
+        totalStr=`${Math.floor(mins/60)}h ${mins%60}m`;
+      }
+      html+=`<tr style="background:${grp.bg};">
+        <td style="font-weight:600;color:${nameColor};">${u.name}</td>
+        <td style="font-size:12px;color:${deptColor};">${u.dept||'—'}</td>
+        <td style="font-variant-numeric:tabular-nums;color:${nameColor};">${inT}</td>
+        <td style="font-variant-numeric:tabular-nums;color:${nameColor};">${outT}</td>
+        <td>${status}</td>
+        <td style="font-weight:600;color:${totalColor};">${totalStr}</td>
+        <td style="display:flex;gap:4px;">
+          <button class="btn-sm" onclick="openEdit('${u.id}','${u.name}','${td}','${inT}','${outT}')">수정</button>
+          ${a?`<button class="btn-reject" onclick="deleteAtt('${u.id}','${u.name}','${td}')">삭제</button>`:''}
+        </td>
+      </tr>`;
+    });
+  });
+  $('today-tbody').innerHTML=html||'<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--gray-400);">직원이 없습니다</td></tr>';
 };
 
-// 월별 보고서
+
 window.loadMonthly = async () => {
   const m=$('report-month').value; if(!m) return;
   const dF=$('report-dept').value;
@@ -1279,7 +1392,10 @@ window.loadDaily = async () => {
       <td>${totalStr}</td>
       <td style="font-size:10px;">${a?.clockInIp||'—'}</td>
       <td>${gps2}</td>
-      <td><button class="btn-sm" onclick="openEdit('${u.id}','${u.name}','${d}','${inT}','${outT}')">수정</button></td></tr>`;
+      <td style="display:flex;gap:4px;">
+        <button class="btn-sm" onclick="openEdit('${u.id}','${u.name}','${d}','${inT}','${outT}')">수정</button>
+        ${a?`<button class="btn-reject" onclick="deleteAtt('${u.id}','${u.name}','${d}')">삭제</button>`:''}
+      </td></tr>`;
   });
   $('daily-tbody').innerHTML=html||'<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--gray-400)">기록 없음</td></tr>';
 };
@@ -1369,11 +1485,16 @@ window.loadMembers = async () => {
     html+=`<div class="member-card">
       <div class="mc-info">
         <div class="mc-name">${u.name} <span style="font-size:11px;color:var(--gray-400);">${roleLabel}</span></div>
-        <div class="mc-sub">${u.dept||'부서없음'} · ${u.deviceId?'📱기기등록':'⚠️기기미등록'}</div>
+        <div class="mc-sub">${u.dept||'부서없음'} · ${u.role==='admin'||u.role==='superadmin'?'⭐관리자':'직원'}</div>
+        <div class="mc-sub" style="font-size:11px;margin-top:2px;">
+          ${u.deviceId?'📱 기기등록':'⚠️ 기기미등록'}
+          ${u.devicePending?'<span style="color:var(--warning);margin-left:6px;">⏳ 기기변경 대기</span>':''}
+        </div>
       </div>
       <div class="mc-actions">
         <button class="btn-sm" onclick="openMember('${u.id}')">수정</button>
         <button class="btn-reject" onclick="resetDevice('${u.id}')">기기초기화</button>
+        <button class="btn-reject" onclick="deleteMember('${u.id}','${u.name}')">삭제</button>
       </div>
     </div>`;
   });
@@ -1397,6 +1518,15 @@ window.rejectMember = async (uid) => {
   await deleteDoc(doc(db,'users_simple',uid));
   toast('처리됐습니다'); await loadMembers();
 };
+window.deleteMember = async (uid, name) => {
+  if(!confirm(`"${name}" 직원을 삭제할까요?\n출퇴근 기록은 유지됩니다.`)) return;
+  try {
+    await deleteDoc(doc(db,'users_simple',uid));
+    toast(`${name} 삭제됐습니다`,'success');
+    await loadMembers();
+  } catch(e){ toast('오류: '+e.message,'error'); }
+};
+
 window.resetDevice = async (uid) => {
   if(!confirm('기기를 초기화하면 다음 로그인 시 새 기기로 등록됩니다. 계속할까요?')) return;
   await updateDoc(doc(db,'users_simple',uid),{deviceId:'',devicePending:false,pendingDeviceId:''});
@@ -1405,22 +1535,53 @@ window.resetDevice = async (uid) => {
 
 // 기기 승인
 window.loadDevices = async () => {
-  const snap=await getDocs(query(collection(db,'users_simple'),where('devicePending','==',true)));
-  if(snap.empty){ $('device-list').innerHTML='<div style="text-align:center;color:var(--gray-400);padding:24px;">기기 변경 요청이 없습니다</div>'; return; }
+  const snap=await getDocs(collection(db,'users_simple'));
+  const allUsers=[]; snap.forEach(d=>allUsers.push({id:d.id,...d.data()}));
+  const pending=allUsers.filter(u=>u.devicePending);
+  const approved=allUsers.filter(u=>u.status==='approved'&&!u.devicePending);
+
   let html='';
-  snap.forEach(d=>{ const u=d.data();
-    html+=`<div class="member-card" style="border-left:3px solid var(--warning);">
-      <div class="mc-info">
+
+  // 기기 변경 요청 대기
+  if(pending.length>0){
+    html+=`<div style="font-size:12px;font-weight:600;color:var(--warning);margin-bottom:8px;">⏳ 기기 변경 요청 (${pending.length}건)</div>`;
+    pending.forEach(u=>{
+      html+=`<div class="member-card" style="border-left:3px solid var(--warning);margin-bottom:8px;">
+        <div class="mc-info" style="min-width:0;">
+          <div class="mc-name">${u.name} <span style="font-size:11px;color:var(--warning);">기기변경 요청</span></div>
+          <div class="mc-sub">${u.dept||''}</div>
+          <div style="margin-top:6px;padding:8px;background:var(--gray-50);border-radius:6px;font-size:10px;color:var(--gray-500);">
+            <div>📱 현재 기기: <span style="font-family:monospace;">${u.deviceId||'없음'}</span></div>
+            <div style="margin-top:3px;">🆕 새 기기: <span style="font-family:monospace;color:var(--primary);">${u.pendingDeviceId||''}</span></div>
+          </div>
+        </div>
+        <div class="mc-actions" style="flex-direction:column;gap:6px;">
+          <button class="btn-approve" onclick="approveDevice('${u.id}')">승인</button>
+          <button class="btn-reject" onclick="rejectDevice('${u.id}')">거절</button>
+        </div>
+      </div>`;
+    });
+  }
+
+  // 전체 직원 기기 현황
+  html+=`<div style="font-size:12px;font-weight:600;color:var(--gray-500);margin:14px 0 8px;">📱 전체 직원 기기 현황</div>`;
+  if(approved.length===0 && pending.length===0){
+    html+='<div style="text-align:center;color:var(--gray-400);padding:20px;">직원이 없습니다</div>';
+  }
+  approved.sort((a,b)=>(a.dept||'').localeCompare(b.dept||'','ko')).forEach(u=>{
+    html+=`<div class="member-card" style="margin-bottom:6px;">
+      <div class="mc-info" style="min-width:0;">
         <div class="mc-name">${u.name}</div>
-        <div class="mc-sub">${u.dept||''} · 기기 변경 요청</div>
+        <div class="mc-sub">${u.dept||'부서없음'}</div>
+        <div style="margin-top:4px;font-size:10px;color:var(--gray-400);word-break:break-all;font-family:monospace;">
+          ${u.deviceId?`📱 ${u.deviceId}`:'⚠️ 기기 미등록'}
+        </div>
       </div>
-      <div class="mc-actions">
-        <button class="btn-approve" onclick="approveDevice('${d.id}')">승인</button>
-        <button class="btn-reject"  onclick="rejectDevice('${d.id}')">거절</button>
-      </div>
+      <button class="btn-reject" onclick="resetDevice('${u.id}')" style="flex-shrink:0;font-size:11px;">초기화</button>
     </div>`;
   });
-  $('device-list').innerHTML=html;
+
+  $('device-list').innerHTML=html||'<div style="text-align:center;color:var(--gray-400);padding:20px;">기기 변경 요청이 없습니다</div>';
 };
 window.approveDevice = async (uid) => {
   const snap=await getDoc(doc(db,'users_simple',uid)); if(!snap.exists()) return;
@@ -1435,6 +1596,16 @@ window.rejectDevice = async (uid) => {
 };
 
 // 출퇴근 수정
+window.deleteAtt = async (uid, name, date) => {
+  if(!confirm(`${name} (${date}) 출퇴근 기록을 삭제할까요?\n삭제하면 해당 직원이 다시 출퇴근을 기록할 수 있습니다.`)) return;
+  try {
+    await deleteDoc(doc(db,'attendance_simple',`${uid}_${date}`));
+    toast(`${name} ${date} 기록 삭제됐습니다`,'success');
+    await loadToday();
+    await loadDaily();
+  } catch(e){ toast('오류: '+e.message,'error'); }
+};
+
 window.openEdit = (uid, name, date, inT, outT) => {
   $('edit-uid').value=uid; $('edit-date').value=date;
   $('edit-info').textContent=`${name} / ${date}`;
@@ -1478,6 +1649,15 @@ window.openMember = async (uid) => {
   $('mem-uid').value=uid; $('mem-name').value=u.name||'';
   $('mem-dept').value=u.dept||''; $('mem-in').value=u.defaultIn||'';
   $('mem-out').value=u.defaultOut||''; $('mem-role').value=u.role||'employee';
+  // 기기 정보 표시
+  const deviceEl=$('mem-device-info');
+  if(deviceEl){
+    if(u.deviceId){
+      deviceEl.innerHTML=`📱 <b>등록된 기기</b><br><span style="font-family:monospace;font-size:11px;">${u.deviceId}</span>${u.devicePending?`<br><br>⏳ <b style="color:var(--warning);">기기 변경 요청 대기 중</b><br><span style="font-family:monospace;font-size:11px;">${u.pendingDeviceId||''}</span>`:''}`;
+    } else {
+      deviceEl.innerHTML='⚠️ 기기 미등록 (다음 로그인 시 자동 등록)';
+    }
+  }
   // 슈퍼관리자만 권한 변경 가능
   const roleWrap=$('mem-role-wrap');
   const roleSelect=$('mem-role');
