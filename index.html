@@ -1256,9 +1256,16 @@ async function loadTodayAtt() {
   let checkDate = today();
   if(settings.mode==='shift'){
     const m2=new Date().getHours()*60+new Date().getMinutes();
-    if(m2<=8*60+30){ const y=new Date(); y.setDate(y.getDate()-1); checkDate=y.toISOString().slice(0,10); }
+    if(m2<=8*60+30){ const y=new Date(); y.setDate(y.getDate()-1); checkDate=`${y.getFullYear()}-${pad(y.getMonth()+1)}-${pad(y.getDate())}`; }
   }
-  const snap = await getDoc(doc(db,'attendance_simple',`${me.uid}_${checkDate}`));
+  const snapDocId = `${me.uid}_${checkDate}`;
+  console.log('loadTodayAtt 조회:', snapDocId);
+  let snap = await getDoc(doc(db,'attendance_simple',snapDocId));
+  // 못 찾으면 today()로 재시도
+  if(!snap.exists() && checkDate !== today()){
+    const snap2 = await getDoc(doc(db,'attendance_simple',`${me.uid}_${today()}`));
+    if(snap2.exists()) snap = snap2;
+  }
   if (!snap.exists()) { updateBtns(); return; }
   const d = snap.data();
   if (d.clockIn) {
@@ -1302,11 +1309,19 @@ window.cancelClockIn = async () => {
   let checkDate = today();
   if(settings.mode==='shift'){
     const m2=new Date().getHours()*60+new Date().getMinutes();
-    if(m2<=8*60+30){ const y=new Date(); y.setDate(y.getDate()-1); checkDate=y.toISOString().slice(0,10); }
+    if(m2<=8*60+30){ const y=new Date(); y.setDate(y.getDate()-1); checkDate=`${y.getFullYear()}-${pad(y.getMonth()+1)}-${pad(y.getDate())}`; }
   }
   try {
+    // 문서 못 찾을 경우 - today()로도 시도
+    let prevSnap = await getDoc(doc(db,'attendance_simple',`${me.uid}_${checkDate}`));
+    if(!prevSnap.exists()){
+      const td3 = today();
+      if(td3 !== checkDate){
+        const altSnap = await getDoc(doc(db,'attendance_simple',`${me.uid}_${td3}`));
+        if(altSnap.exists()){ prevSnap = altSnap; checkDate = td3; }
+      }
+    }
     // 취소 전 기록 저장
-    const prevSnap = await getDoc(doc(db,'attendance_simple',`${me.uid}_${checkDate}`));
     if(prevSnap.exists()){
       const prev = prevSnap.data();
       await addDoc(collection(db,'cancel_logs'), {
@@ -1343,11 +1358,23 @@ window.cancelClockOut = async () => {
   let checkDate = today();
   if(settings.mode==='shift'){
     const m2=new Date().getHours()*60+new Date().getMinutes();
-    if(m2<=8*60+30){ const y=new Date(); y.setDate(y.getDate()-1); checkDate=y.toISOString().slice(0,10); }
+    if(m2<=8*60+30){ const y=new Date(); y.setDate(y.getDate()-1); checkDate=`${y.getFullYear()}-${pad(y.getMonth()+1)}-${pad(y.getDate())}`; }
   }
   try {
+    // 문서 못 찾을 경우 대비 - uid로 오늘 기록 검색
+    let targetCheckDate = checkDate;
+    let prevSnap2 = await getDoc(doc(db,'attendance_simple',`${me.uid}_${checkDate}`));
+    if(!prevSnap2.exists()){
+      // today()로도 시도
+      const td2 = today();
+      if(td2 !== checkDate){
+        prevSnap2 = await getDoc(doc(db,'attendance_simple',`${me.uid}_${td2}`));
+        if(prevSnap2.exists()) targetCheckDate = td2;
+      }
+    }
+    // cancelClockOut 문서 ID를 targetCheckDate로 교체
+    checkDate = targetCheckDate;
     // 취소 전 기록 저장
-    const prevSnap2 = await getDoc(doc(db,'attendance_simple',`${me.uid}_${checkDate}`));
     if(prevSnap2.exists()){
       const prev2 = prevSnap2.data();
       await addDoc(collection(db,'cancel_logs'), {
@@ -1411,7 +1438,9 @@ window.clockIn = async () => {
     // 현재 IP 가져오기
     let clockInIp='';
     try { const r2=await fetch('https://api.ipify.org?format=json',{cache:'no-store'}); const d2=await r2.json(); clockInIp=d2.ip||''; } catch(e){}
-    await setDoc(doc(db,'attendance_simple',`${me.uid}_${shiftDate}`), {
+    const docId = `${me.uid}_${shiftDate}`;
+    console.log('출근 저장 문서ID:', docId, 'shiftDate:', shiftDate);
+    await setDoc(doc(db,'attendance_simple',docId), {
       uid:me.uid, name:meData.name, dept:meData.dept||'', date:shiftDate,
       clockIn:Timestamp.fromDate(now), clockOut:null,
       lateMin, earlyMin:0, otMin:0,
