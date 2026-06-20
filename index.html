@@ -698,7 +698,7 @@ tr:hover td{opacity:0.92;}
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, query, where, getDocs, orderBy, serverTimestamp, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, query, where, getDocs, serverTimestamp, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 const app = initializeApp({
   apiKey:"AIzaSyDYRwZQGjrZbT_jrawL9kUfpVCkE-KMqlU",
@@ -1481,7 +1481,7 @@ async function loadWeek() {
   const n=new Date(); const dow=n.getDay();
   const mon=new Date(n); mon.setDate(n.getDate()-(dow===0?6:dow-1)); mon.setHours(0,0,0,0);
   const monStr=mon.toISOString().slice(0,10);
-  const snap=await getDocs(query(collection(db,'attendance_simple'),where('uid','==',me.uid),where('date','>=',monStr),orderBy('date','desc')));
+  const snap=await getDocs(query(collection(db,'attendance_simple'),where('uid','==',me.uid),where('date','>=',monStr)));
   const map={}; snap.forEach(d=>map[d.data().date]=d.data());
   let html='';
   for(let i=6;i>=0;i--){
@@ -1699,7 +1699,7 @@ window.exportTodayCSV = async () => {
 window.exportMonthCSV = async () => {
   const m=$('report-month').value||nowMonth();
   const [y,mo]=m.split('-');
-  const snap=await getDocs(query(collection(db,'attendance_simple'),where('date','>=',`${y}-${mo}-01`),where('date','<=',`${y}-${mo}-31`),orderBy('date','asc')));
+  const snap=await getDocs(query(collection(db,'attendance_simple'),where('date','>=',`${y}-${mo}-01`),where('date','<=',`${y}-${mo}-31`)));
   const rows=[['이름','부서','날짜','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)']];
   snap.forEach(d=>{ const r=d.data();
     const inT=r.clockIn?fmt(r.clockIn.toDate()):'';
@@ -2069,9 +2069,7 @@ window.loadMyHistory = async () => {
     collection(db,'attendance_simple'),
     where('uid','==',me.uid),
     where('date','>=',`${y}-${mo}-01`),
-    where('date','<=',`${y}-${mo}-31`),
-    orderBy('date','desc')
-  ));
+    where('date','<=',`${y}-${mo}-31`)));
   if(snap.empty){ $('my-history').innerHTML='<div style="text-align:center;color:var(--gray-400);padding:12px;">기록이 없습니다</div>'; return; }
   const myDocs=[]; snap.forEach(d=>myDocs.push({id:d.id,...d.data()}));
   myDocs.sort((a,b)=>b.date.localeCompare(a.date));
