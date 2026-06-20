@@ -8,6 +8,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="에스한방 출퇴근">
 <meta name="theme-color" content="#1a6b4a">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>에스한방병원 출퇴근</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏥</text></svg>">
 <style>
@@ -680,6 +683,19 @@ function getDeviceId() {
   }
   return id;
 }
+
+// ── 전역 함수 미리 등록 (호이스팅 보장) ──
+window.exportTodayCSV  = async () => { console.log('loading...'); };
+window.exportMonthCSV  = async () => { console.log('loading...'); };
+window.exportDailyCSV  = async () => { console.log('loading...'); };
+window.exportWeeklyCSV = async () => { console.log('loading...'); };
+window.exportMemberCSV = async () => { console.log('loading...'); };
+window.exportMyCSV     = async () => { console.log('loading...'); };
+window.loadToday       = async () => { console.log('loading...'); };
+window.loadMonthly     = async () => { console.log('loading...'); };
+window.loadDaily       = async () => { console.log('loading...'); };
+window.loadWeekly      = async () => { console.log('loading...'); };
+window.loadCancelLogs  = async () => { console.log('loading...'); };
 
 // ── 관리자 모드 선택 ──
 function showSelectPage() {
