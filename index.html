@@ -393,13 +393,13 @@ tr:hover td{opacity:0.92;}
     </div>
   </div>
   <div class="admin-tabs">
-    <div class="a-tab on" onclick="switchTab('today',this)">오늘 현황</div>
-    <div class="a-tab" onclick="switchTab('monthly',this)">월별 보고서</div>
-    <div class="a-tab" onclick="switchTab('daily',this)">일별 조회</div>
-    <div class="a-tab" onclick="switchTab('weekly',this)">주별 조회</div>
-    <div class="a-tab" onclick="switchTab('member-report',this)">직원별 조회</div>
-    <div class="a-tab" onclick="switchTab('members',this)">직원 관리</div>
-    <div class="a-tab" onclick="switchTab('devices',this)">기기 승인</div>
+    <div class="a-tab on" onclick="window.switchTab('today',this)">오늘 현황</div>
+    <div class="a-tab" onclick="window.switchTab('monthly',this)">월별 보고서</div>
+    <div class="a-tab" onclick="window.switchTab('daily',this)">일별 조회</div>
+    <div class="a-tab" onclick="window.switchTab('weekly',this)">주별 조회</div>
+    <div class="a-tab" onclick="window.switchTab('member-report',this)">직원별 조회</div>
+    <div class="a-tab" onclick="window.switchTab('members',this)">직원 관리</div>
+    <div class="a-tab" onclick="window.switchTab('devices',this)">기기 승인</div>
     <div class="a-tab" onclick="window.switchTab('cancel-logs',this)">취소 이력</div>
     <div class="a-tab" onclick="window.switchTab('settings',this)">설정</div>
   </div>
@@ -416,8 +416,8 @@ tr:hover td{opacity:0.92;}
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <span style="font-size:12px;color:var(--gray-400);" id="last-update"></span>
         <div style="display:flex;gap:6px;">
-          <button class="btn-sm" onclick="exportTodayCSV()">📊 오늘 엑셀</button>
-          <button class="btn-sm" onclick="loadToday()">🔄 새로고침</button>
+          <button onclick="window.exportTodayCSV()" style="padding:7px 14px;background:var(--success);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">📊 오늘 엑셀</button>
+          <button class="btn-sm" onclick="window.loadToday()">🔄 새로고침</button>
         </div>
       </div>
       <div class="tbl-wrap">
@@ -436,7 +436,7 @@ tr:hover td{opacity:0.92;}
           <option value="">전체 부서</option>
         </select>
         <button class="btn-sm" onclick="loadMonthly()">조회</button>
-        <button class="btn-sm" onclick="exportMonthCSV()">📊 엑셀 다운로드</button>
+        <button onclick="window.exportMonthCSV()" style="padding:7px 14px;background:var(--success);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">📊 엑셀</button>
       </div>
       <div class="tbl-wrap">
         <table>
@@ -451,7 +451,7 @@ tr:hover td{opacity:0.92;}
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
         <input type="date" id="daily-date" style="padding:8px 12px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;">
         <button class="btn-sm" onclick="loadDaily()">조회</button>
-        <button class="btn-sm" onclick="exportDailyCSV()">📊 엑셀</button>
+        <button onclick="window.exportDailyCSV()" style="padding:7px 14px;background:var(--success);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">📊 엑셀</button>
       </div>
       <div class="tbl-wrap">
         <table>
@@ -469,7 +469,7 @@ tr:hover td{opacity:0.92;}
           <option value="">전체 부서</option>
         </select>
         <button class="btn-sm" onclick="loadWeekly()">조회</button>
-        <button class="btn-sm" onclick="exportWeeklyCSV()">📊 엑셀</button>
+        <button onclick="window.exportWeeklyCSV()" style="padding:7px 14px;background:var(--success);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">📊 엑셀</button>
       </div>
       <!-- 주간 요약 통계 -->
       <div id="weekly-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;"></div>
@@ -493,7 +493,7 @@ tr:hover td{opacity:0.92;}
           <option value="all">전체</option>
         </select>
         <input type="month" id="mr-month" style="padding:8px 12px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;" onchange="loadMemberReport()">
-        <button class="btn-sm" onclick="exportMemberCSV()">📊 엑셀</button>
+        <button onclick="window.exportMemberCSV()" style="padding:7px 14px;background:var(--success);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">📊 엑셀</button>
       </div>
       <!-- 직원 요약 카드 -->
       <div id="mr-summary" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;"></div>
@@ -690,6 +690,15 @@ function showSelectPage() {
 
 window.goEmp = () => loadEmpPage();
 window.goAdmin = () => loadAdminPage();
+window.exportTodayCSV  = exportTodayCSV;
+window.exportMonthCSV  = exportMonthCSV;
+window.exportDailyCSV  = exportDailyCSV;
+window.exportWeeklyCSV = exportWeeklyCSV;
+window.exportMemberCSV = exportMemberCSV;
+window.loadToday   = loadToday;
+window.loadMonthly = loadMonthly;
+window.loadDaily   = loadDaily;
+window.loadWeekly  = loadWeekly;
 // HTML onclick에서 직접 호출 가능하게 등록
 window.loadAdminPage = loadAdminPage;
 window.loadEmpPage = loadEmpPage;
@@ -1289,9 +1298,14 @@ async function loadAdminPage() {
   await loadDepts();
   await loadMemberSelectList();
   // 주별 기본값 - 이번 주
-  const now2=new Date(); const yr2=now2.getFullYear();
-  const start2=new Date(now2); start2.setDate(now2.getDate()-(now2.getDay()||7)+1);
-  const wk2=getWeekNum(start2);
+  // 이번 주 일요일 기준 ISO 주차 계산
+  const now2=new Date();
+  // 이번 주 일요일
+  const thisSun=new Date(now2); thisSun.setDate(now2.getDate()-now2.getDay());
+  // ISO 주차는 월요일 기준이므로 일요일+1(월요일)로 계산
+  const isoMon2=new Date(thisSun); isoMon2.setDate(thisSun.getDate()+1);
+  const yr2=isoMon2.getFullYear();
+  const wk2=getWeekNum(isoMon2);
   $('weekly-week').value=`${yr2}-W${String(wk2).padStart(2,'0')}`;
   $('mr-month').value=nowMonth();
 }
@@ -1886,11 +1900,14 @@ window.exportMyCSV = async () => {
 // ── 관리자 주별 조회 ──
 window.loadWeekly = async () => {
   const wv=$('weekly-week').value; if(!wv) return;
-  // YYYY-Www → 해당 주 월~일 날짜 계산
+  // YYYY-Www → 일요일 시작 토요일 끝으로 계산
   const [yw,ww]=wv.split('-W');
   const jan4=new Date(parseInt(yw),0,4);
-  const weekStart=new Date(jan4);
-  weekStart.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(parseInt(ww)-1)*7);
+  const isoMonday=new Date(jan4);
+  isoMonday.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(parseInt(ww)-1)*7);
+  // ISO 월요일에서 하루 빼면 일요일
+  const weekStart=new Date(isoMonday);
+  weekStart.setDate(isoMonday.getDate()-1);
   const dates=[];
   for(let i=0;i<7;i++){
     const d=new Date(weekStart); d.setDate(weekStart.getDate()+i);
@@ -1917,9 +1934,9 @@ window.loadWeekly = async () => {
     <div class="stat-box"><div class="stat-num" style="color:var(--primary);font-size:18px;">${Math.floor(totalWork/60)}h</div><div class="stat-lbl">총 근무</div></div>`;
 
   // 헤더 (이름 | 월 화 수 목 금 토 일 | 합계)
-  const dayNames=['월','화','수','목','금','토','일'];
+  const dayNames=['일','월','화','수','목','금','토'];
   let thead=`<tr><th>이름</th><th>부서</th>`;
-  dates.forEach((dt,i)=>{ const d=new Date(dt+'T00:00:00'); thead+=`<th style="${i>=5?'color:var(--danger)':''}">${d.getDate()}<br>${dayNames[i]}</th>`; });
+  dates.forEach((dt,i)=>{ const d=new Date(dt+'T00:00:00'); thead+=`<th style="${i===0?'color:var(--danger)':i===6?'color:#3b82f6':''}">${d.getDate()}<br>${dayNames[i]}</th>`; });
   thead+=`<th>근무일</th><th>지각</th><th>총근무</th></tr>`;
   $('weekly-thead').innerHTML=thead;
 
