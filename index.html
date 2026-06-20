@@ -400,7 +400,8 @@ tr:hover td{opacity:0.92;}
     <div class="a-tab" onclick="switchTab('member-report',this)">직원별 조회</div>
     <div class="a-tab" onclick="switchTab('members',this)">직원 관리</div>
     <div class="a-tab" onclick="switchTab('devices',this)">기기 승인</div>
-    <div class="a-tab" onclick="switchTab('settings',this)">설정</div>
+    <div class="a-tab" onclick="window.switchTab('cancel-logs',this)">취소 이력</div>
+    <div class="a-tab" onclick="window.switchTab('settings',this)">설정</div>
   </div>
   <div class="admin-body">
 
@@ -517,6 +518,15 @@ tr:hover td{opacity:0.92;}
     <div class="a-sec" id="sec-devices">
       <div style="font-size:13px;color:var(--gray-500);margin-bottom:12px;">기기 변경 요청 목록</div>
       <div id="device-list"></div>
+    </div>
+
+    <!-- 취소 이력 -->
+    <div class="a-sec" id="sec-cancel-logs">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div style="font-size:13px;color:var(--gray-500);">직원의 출퇴근 취소 이력</div>
+        <input type="month" id="cancel-month" style="padding:7px 10px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;" onchange="window.loadCancelLogs()">
+      </div>
+      <div id="cancel-log-list"><div style="text-align:center;color:var(--gray-400);padding:20px;">로딩 중...</div></div>
     </div>
 
     <!-- 설정 -->
@@ -1037,6 +1047,20 @@ window.cancelClockIn = async () => {
     if(m2<=8*60+30){ const y=new Date(); y.setDate(y.getDate()-1); checkDate=y.toISOString().slice(0,10); }
   }
   try {
+    // 취소 전 기록 저장
+    const prevSnap = await getDoc(doc(db,'attendance_simple',`${me.uid}_${checkDate}`));
+    if(prevSnap.exists()){
+      const prev = prevSnap.data();
+      await addDoc(collection(db,'cancel_logs'), {
+        uid: me.uid, name: meData.name, dept: meData.dept||'',
+        date: checkDate, type: '출근취소',
+        prevClockIn: prev.clockIn||null,
+        prevClockOut: prev.clockOut||null,
+        prevShiftName: prev.shiftName||'',
+        prevLateMin: prev.lateMin||0,
+        cancelledAt: serverTimestamp()
+      });
+    }
     await deleteDoc(doc(db,'attendance_simple',`${me.uid}_${checkDate}`));
     // UI 초기화
     $('t-in').textContent='--:--'; $('t-in').classList.add('empty');
@@ -1061,6 +1085,21 @@ window.cancelClockOut = async () => {
     if(m2<=8*60+30){ const y=new Date(); y.setDate(y.getDate()-1); checkDate=y.toISOString().slice(0,10); }
   }
   try {
+    // 취소 전 기록 저장
+    const prevSnap2 = await getDoc(doc(db,'attendance_simple',`${me.uid}_${checkDate}`));
+    if(prevSnap2.exists()){
+      const prev2 = prevSnap2.data();
+      await addDoc(collection(db,'cancel_logs'), {
+        uid: me.uid, name: meData.name, dept: meData.dept||'',
+        date: checkDate, type: '퇴근취소',
+        prevClockIn: prev2.clockIn||null,
+        prevClockOut: prev2.clockOut||null,
+        prevShiftName: prev2.shiftName||'',
+        prevOtMin: prev2.otMin||0,
+        prevEarlyMin: prev2.earlyMin||0,
+        cancelledAt: serverTimestamp()
+      });
+    }
     await updateDoc(doc(db,'attendance_simple',`${me.uid}_${checkDate}`),{
       clockOut:null, earlyMin:0, otMin:0
     });
@@ -1244,6 +1283,7 @@ async function loadAdminPage() {
   showPage('page-admin');
   $('report-month').value = nowMonth();
   $('daily-date').value   = today();
+  $('cancel-month').value = nowMonth();
   await loadSettings2();
   await loadToday();
   await loadDepts();
@@ -1267,6 +1307,7 @@ window.switchTab = (tab, el) => {
   if(tab==='members') loadMembers();
   if(tab==='devices') loadDevices();
   if(tab==='settings')loadSettings2();
+  if(tab==='cancel-logs'){ window.loadCancelLogs(); }
   if(tab==='weekly'){ loadWeekly(); loadDepts2('weekly-dept'); }
   if(tab==='member-report'){ loadMemberSelectList(); loadMemberReport(); }
 };
@@ -1995,6 +2036,63 @@ window.exportMemberCSV = async () => {
     rows.push([r.date,inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total]);
   });
   dlCSV(rows,`${name}_${m}_근무기록.csv`);
+};
+
+// ── 취소 이력 ──
+window.loadCancelLogs = async () => {
+  const m = $('cancel-month').value || nowMonth();
+  if(!$('cancel-month').value) $('cancel-month').value = m;
+  const [y,mo] = m.split('-');
+  try {
+    const snap = await getDocs(query(
+      collection(db,'cancel_logs'),
+      where('date','>=',`${y}-${mo}-01`),
+      where('date','<=',`${y}-${mo}-31`),
+      orderBy('cancelledAt','desc')
+    ));
+    if(snap.empty){
+      $('cancel-log-list').innerHTML='<div style="text-align:center;color:var(--gray-400);padding:24px;">취소 이력이 없습니다</div>';
+      return;
+    }
+    let html='';
+    snap.forEach(d=>{
+      const r = d.data();
+      const cancelTime = r.cancelledAt?.toDate();
+      const cancelStr = cancelTime ? `${r.date} ${fmt(cancelTime)}` : r.date;
+      const prevIn  = r.prevClockIn  ? fmt(r.prevClockIn.toDate())  : '—';
+      const prevOut = r.prevClockOut ? fmt(r.prevClockOut.toDate()) : '—';
+      const isOut = r.type==='퇴근취소';
+      const badgeColor = isOut ? 'var(--warning)' : 'var(--danger)';
+      const bgColor    = isOut ? 'var(--warning-light)' : 'var(--danger-light)';
+      html+=`<div style="background:#fff;border-radius:12px;padding:14px 16px;margin-bottom:8px;box-shadow:var(--shadow);border-left:3px solid ${badgeColor};">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div>
+            <span style="font-size:14px;font-weight:700;color:var(--gray-900);">${r.name}</span>
+            <span style="font-size:12px;color:var(--gray-400);margin-left:6px;">${r.dept||''}</span>
+          </div>
+          <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:8px;background:${bgColor};color:${badgeColor};">${r.type}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:12px;">
+          <div style="background:var(--gray-50);border-radius:8px;padding:8px;">
+            <div style="color:var(--gray-400);margin-bottom:2px;">취소 일시</div>
+            <div style="font-weight:600;color:var(--gray-800);">${cancelStr}</div>
+          </div>
+          <div style="background:var(--gray-50);border-radius:8px;padding:8px;">
+            <div style="color:var(--gray-400);margin-bottom:2px;">취소 전 출근</div>
+            <div style="font-weight:600;color:var(--primary);">${prevIn}${r.prevLateMin>0?` <span style="color:var(--warning);font-size:10px;">지각+${r.prevLateMin}분</span>`:''}</div>
+          </div>
+          <div style="background:var(--gray-50);border-radius:8px;padding:8px;">
+            <div style="color:var(--gray-400);margin-bottom:2px;">취소 전 퇴근</div>
+            <div style="font-weight:600;color:var(--danger);">${prevOut}${r.prevOtMin>0?` <span style="color:#3b82f6;font-size:10px;">연장+${r.prevOtMin}분</span>`:''}</div>
+          </div>
+        </div>
+        ${r.prevShiftName?`<div style="margin-top:6px;font-size:11px;color:var(--primary);font-weight:600;">📋 ${r.prevShiftName} 근무</div>`:''}
+      </div>`;
+    });
+    $('cancel-log-list').innerHTML=html;
+  } catch(e){
+    $('cancel-log-list').innerHTML=`<div style="text-align:center;color:var(--danger);padding:20px;">오류: ${e.message}</div>`;
+  }
 };
 
 // 텔레그램 테스트
