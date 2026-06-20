@@ -703,23 +703,31 @@ onAuthStateChanged(auth, async user => {
     return;
   }
 
-  // 기기 확인
+  // 기기 확인 (관리자/슈퍼관리자는 기기 제한 없음)
   const did = getDeviceId();
-  if (meData.deviceId && meData.deviceId !== did) {
-    // 기기 변경 승인 대기 중
-    if (meData.devicePending) {
-      showPage('page-pending');
-      $('pending-msg').textContent = '기기 변경 승인을 기다리는 중입니다.\n관리자에게 문의해주세요.';
+  const isAdminRole = meData.role==='admin'||meData.role==='superadmin';
+
+  if (!isAdminRole) {
+    // 일반 직원만 기기 체크
+    if (meData.deviceId && meData.deviceId !== did) {
+      if (meData.devicePending) {
+        showPage('page-pending');
+        $('pending-msg').textContent = '기기 변경 승인을 기다리는 중입니다.\n관리자에게 문의해주세요.';
+        return;
+      }
+      showPage('page-device');
       return;
     }
-    showPage('page-device');
-    return;
-  }
-
-  // 기기 첫 등록
-  if (!meData.deviceId) {
-    await updateDoc(ref, { deviceId: did });
-    meData.deviceId = did;
+    // 기기 첫 등록
+    if (!meData.deviceId) {
+      await updateDoc(ref, { deviceId: did });
+      meData.deviceId = did;
+    }
+  } else {
+    // 관리자는 기기 등록 없이 바로 통과, 기기 pending 상태도 해제
+    if (meData.devicePending) {
+      await updateDoc(ref, { devicePending:false, pendingDeviceId:'' });
+    }
   }
 
   // 관리자 vs 직원
