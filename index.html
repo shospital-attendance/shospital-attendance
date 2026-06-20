@@ -632,7 +632,7 @@ tr:hover td{opacity:0.92;}
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, where, getDocs, orderBy, serverTimestamp, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, query, where, getDocs, orderBy, serverTimestamp, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 const app = initializeApp({
   apiKey:"AIzaSyDYRwZQGjrZbT_jrawL9kUfpVCkE-KMqlU",
@@ -1859,8 +1859,10 @@ window.loadMyHistory = async () => {
     orderBy('date','desc')
   ));
   if(snap.empty){ $('my-history').innerHTML='<div style="text-align:center;color:var(--gray-400);padding:12px;">기록이 없습니다</div>'; return; }
+  const myDocs=[]; snap.forEach(d=>myDocs.push({id:d.id,...d.data()}));
+  myDocs.sort((a,b)=>b.date.localeCompare(a.date));
   let html='', totalMin=0, workDays=0, lateCnt=0;
-  snap.forEach(d=>{ const r=d.data();
+  myDocs.forEach(r=>{
     const inT=r.clockIn?fmt(r.clockIn.toDate()):'—';
     const outT=r.clockOut?fmt(r.clockOut.toDate()):'—';
     let mins=0; if(r.clockIn&&r.clockOut){ mins=Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000); totalMin+=mins; }
@@ -1886,7 +1888,7 @@ window.loadMyHistory = async () => {
 window.exportMyCSV = async () => {
   const m=$('my-month').value; if(!m){ toast('월을 선택하세요','error'); return; }
   const [y,mo]=m.split('-');
-  const snap=await getDocs(query(collection(db,'attendance_simple'),where('uid','==',me.uid),where('date','>=',`${y}-${mo}-01`),where('date','<=',`${y}-${mo}-31`),orderBy('date','asc')));
+  const snap=await getDocs(query(collection(db,'attendance_simple'),where('uid','==',me.uid),where('date','>=',`${y}-${mo}-01`),where('date','<=',`${y}-${mo}-31`)));
   const rows=[['날짜','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)']];
   snap.forEach(d=>{ const r=d.data();
     const inT=r.clockIn?fmt(r.clockIn.toDate()):'';
@@ -2009,11 +2011,14 @@ window.loadMemberReport = async () => {
   }
 
   const snap=await getDocs(query(collection(db,'attendance_simple'),
-    where('uid','==',uid),where('date','>=',startDate),where('date','<=',endDate),orderBy('date','desc')));
+    where('uid','==',uid),where('date','>=',startDate),where('date','<=',endDate)));
 
+  // JS에서 날짜 내림차순 정렬
+  const mrDocs=[]; snap.forEach(d=>mrDocs.push({id:d.id,...d.data()}));
+  mrDocs.sort((a,b)=>b.date.localeCompare(a.date));
   let totalMin=0,workDays=0,lateCnt=0,earlyC=0,otH=0;
   let html='';
-  snap.forEach(d=>{ const r=d.data();
+  mrDocs.forEach(r=>{
     const inT=r.clockIn?fmt(r.clockIn.toDate()):'—';
     const outT=r.clockOut?fmt(r.clockOut.toDate()):'—';
     let mins=0; if(r.clockIn&&r.clockOut){ mins=Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000); totalMin+=mins; }
@@ -2042,7 +2047,7 @@ window.exportMemberCSV = async () => {
   const uid=$('mr-uid').value; if(!uid){ toast('직원을 선택하세요','error'); return; }
   const m=$('mr-month').value||nowMonth();
   const [y,mo]=m.split('-');
-  const snap=await getDocs(query(collection(db,'attendance_simple'),where('uid','==',uid),where('date','>=',`${y}-${mo}-01`),where('date','<=',`${y}-${mo}-31`),orderBy('date','asc')));
+  const snap=await getDocs(query(collection(db,'attendance_simple'),where('uid','==',uid),where('date','>=',`${y}-${mo}-01`),where('date','<=',`${y}-${mo}-31`)));
   const rows=[['날짜','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)']];
   let name='직원';
   snap.forEach(d=>{ const r=d.data();
@@ -2064,16 +2069,22 @@ window.loadCancelLogs = async () => {
     const snap = await getDocs(query(
       collection(db,'cancel_logs'),
       where('date','>=',`${y}-${mo}-01`),
-      where('date','<=',`${y}-${mo}-31`),
-      orderBy('cancelledAt','desc')
+      where('date','<=',`${y}-${mo}-31`)
     ));
     if(snap.empty){
       $('cancel-log-list').innerHTML='<div style="text-align:center;color:var(--gray-400);padding:24px;">취소 이력이 없습니다</div>';
       return;
     }
+    // JS에서 날짜 내림차순 정렬
+    const docs = [];
+    snap.forEach(d=>docs.push({id:d.id,...d.data()}));
+    docs.sort((a,b)=>{
+      const at = a.cancelledAt?.toDate?.()?.getTime()||0;
+      const bt = b.cancelledAt?.toDate?.()?.getTime()||0;
+      return bt-at;
+    });
     let html='';
-    snap.forEach(d=>{
-      const r = d.data();
+    docs.forEach(r=>{
       const cancelTime = r.cancelledAt?.toDate();
       const cancelStr = cancelTime ? `${r.date} ${fmt(cancelTime)}` : r.date;
       const prevIn  = r.prevClockIn  ? fmt(r.prevClockIn.toDate())  : '—';
