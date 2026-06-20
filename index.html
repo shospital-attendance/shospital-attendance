@@ -1521,9 +1521,9 @@ window.clockOut = async () => {
 async function loadWeek() {
   const n=new Date(); const dow=n.getDay();
   const mon=new Date(n); mon.setDate(n.getDate()-(dow===0?6:dow-1)); mon.setHours(0,0,0,0);
-  const monStr=mon.toISOString().slice(0,10);
-  const snap=await getDocs(query(collection(db,'attendance_simple'),where('uid','==',me.uid),where('date','>=',monStr)));
-  const map={}; snap.forEach(d=>map[d.data().date]=d.data());
+  const monStr=`${mon.getFullYear()}-${pad(mon.getMonth()+1)}-${pad(mon.getDate())}`;
+  const snap=await getDocs(query(collection(db,'attendance_simple'),where('uid','==',me.uid)));
+  const map={}; snap.forEach(d=>{ const r=d.data(); if(r.date>=monStr) map[r.date]=r; });
   let html='';
   for(let i=6;i>=0;i--){
     const d=new Date(mon); d.setDate(mon.getDate()+i);
@@ -2106,13 +2106,10 @@ function getShiftInfo(shift, now) {
 window.loadMyHistory = async () => {
   const m = $('my-month').value; if(!m) return;
   const [y,mo] = m.split('-');
-  const snap = await getDocs(query(
-    collection(db,'attendance_simple'),
-    where('uid','==',me.uid),
-    where('date','>=',`${y}-${mo}-01`),
-    where('date','<=',`${y}-${mo}-31`)));
-  if(snap.empty){ $('my-history').innerHTML='<div style="text-align:center;color:var(--gray-400);padding:12px;">기록이 없습니다</div>'; return; }
-  const myDocs=[]; snap.forEach(d=>myDocs.push({id:d.id,...d.data()}));
+  const snap = await getDocs(query(collection(db,'attendance_simple'),where('uid','==',me.uid)));
+  const startD=`${y}-${mo}-01`, endD=`${y}-${mo}-31`;
+  const myDocs=[]; snap.forEach(d=>{ const r={id:d.id,...d.data()}; if(r.date>=startD&&r.date<=endD) myDocs.push(r); });
+  if(!myDocs.length){ $('my-history').innerHTML='<div style="text-align:center;color:var(--gray-400);padding:12px;">기록이 없습니다</div>'; return; }
   myDocs.sort((a,b)=>b.date.localeCompare(a.date));
   let html='', totalMin=0, workDays=0, lateCnt=0;
   myDocs.forEach(r=>{
@@ -2141,9 +2138,10 @@ window.loadMyHistory = async () => {
 window.exportMyCSV = async () => {
   const m=$('my-month').value; if(!m){ toast('월을 선택하세요','error'); return; }
   const [y,mo]=m.split('-');
-  const snap=await getDocs(query(collection(db,'attendance_simple'),where('uid','==',me.uid),where('date','>=',`${y}-${mo}-01`),where('date','<=',`${y}-${mo}-31`)));
+  const allSnap2=await getDocs(query(collection(db,'attendance_simple'),where('uid','==',me.uid)));
   const rows=[['날짜','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)']];
-  snap.forEach(d=>{ const r=d.data();
+  const s2=`${y}-${mo}-01`, e2=`${y}-${mo}-31`;
+  allSnap2.forEach(d=>{ const r=d.data(); if(r.date<s2||r.date>e2) return;
     const inT=r.clockIn?fmt(r.clockIn.toDate()):'';
     const outT=r.clockOut?fmt(r.clockOut.toDate()):'';
     const total=r.clockIn&&r.clockOut?Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000):0;
@@ -2281,9 +2279,7 @@ window.loadMemberReport = async () => {
   try {
     const snap = await getDocs(query(
       collection(db,'attendance_simple'),
-      where('uid','==',uid),
-      where('date','>=',startDate),
-      where('date','<=',endDate)
+      where('uid','==',uid)
     ));
 
     if(snap.empty){
@@ -2291,7 +2287,8 @@ window.loadMemberReport = async () => {
       return;
     }
 
-    const docs=[]; snap.forEach(d=>docs.push({id:d.id,...d.data()}));
+    // JS에서 날짜 범위 필터
+    const docs=[]; snap.forEach(d=>{ const r={id:d.id,...d.data()}; if(r.date>=startDate && r.date<=endDate) docs.push(r); });
     docs.sort((a,b)=>b.date.localeCompare(a.date));
 
     let totalMin=0,workDays=0,lateCnt=0,earlyC=0,otH=0;
@@ -2339,7 +2336,9 @@ window.exportMemberCSV = async () => {
   const uid=$('mr-uid').value; if(!uid){ toast('직원을 선택하세요','error'); return; }
   const m=$('mr-month').value||nowMonth();
   const [y,mo]=m.split('-');
-  const snap=await getDocs(query(collection(db,'attendance_simple'),where('uid','==',uid),where('date','>=',`${y}-${mo}-01`),where('date','<=',`${y}-${mo}-31`)));
+  const allSnap=await getDocs(query(collection(db,'attendance_simple'),where('uid','==',uid)));
+  const filteredDocs=[]; allSnap.forEach(d=>{ const r=d.data(); if(r.date>=`${y}-${mo}-01`&&r.date<=`${y}-${mo}-31`) filteredDocs.push(r); });
+  const snap={forEach:(fn)=>filteredDocs.forEach(r=>fn({data:()=>r}))};
   const rows=[['날짜','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)']];
   let name='직원';
   snap.forEach(d=>{ const r=d.data();
