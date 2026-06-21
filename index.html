@@ -208,6 +208,24 @@ tr:hover td{opacity:0.92;}
   <p>에스한방병원</p>
 </div>
 
+<!-- 카카오톡 브라우저 안내 -->
+<div id="page-kakao" class="page">
+  <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(160deg,#0a3320,var(--primary));padding:24px;">
+    <div style="background:#fff;border-radius:20px;padding:28px 24px;width:100%;max-width:340px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.25);">
+      <div style="font-size:48px;margin-bottom:12px;">⚠️</div>
+      <div style="font-size:17px;font-weight:700;margin-bottom:10px;">카카오톡 브라우저에서는<br>로그인이 불가합니다</div>
+      <div style="font-size:13px;color:var(--gray-500);line-height:1.8;margin-bottom:20px;">
+        구글 로그인 보안 정책으로 인해<br>카카오톡 내 브라우저에서는 사용할 수 없습니다.<br><br>
+        아래 버튼을 눌러 외부 브라우저로 열어주세요.
+      </div>
+      <button onclick="openExternal()" style="width:100%;padding:14px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius);font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px;">
+        🌐 외부 브라우저로 열기
+      </button>
+      <div style="font-size:11px;color:var(--gray-400);">Chrome 또는 Safari를 사용해주세요</div>
+    </div>
+  </div>
+</div>
+
 <!-- 로그인 -->
 <div id="page-login" class="page">
   <div class="login-wrap">
@@ -682,9 +700,9 @@ tr:hover td{opacity:0.92;}
       <select id="mem-role">
         <option value="employee">직원</option>
         <option value="admin">관리자</option>
-        <option value="superadmin">슈퍼관리자</option>
+        <option value="superadmin" id="opt-superadmin">최고관리자</option>
       </select>
-      <div style="font-size:11px;color:var(--gray-400);margin-top:4px;">슈퍼관리자만 권한 변경 가능합니다</div>
+      <div style="font-size:11px;color:var(--gray-400);margin-top:4px;" id="mem-role-desc"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-gray" onclick="closeModal('modal-member')">취소</button>
@@ -772,6 +790,27 @@ window.selectShift = (shiftName) => {
 };
 // selectShift를 window에 등록 (onclick에서 호출)
 window.selectShift = window.selectShift;
+
+// ── 카카오톡 브라우저 감지 ──
+(function(){
+  const ua = navigator.userAgent;
+  const isKakao = /KAKAO/i.test(ua) || /kakaotalk/i.test(ua);
+  if(isKakao){
+    document.addEventListener('DOMContentLoaded', ()=>{
+      document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+      const pg = document.getElementById('page-kakao');
+      if(pg) pg.classList.add('active');
+      const ld = document.getElementById('loading');
+      if(ld) ld.style.display='none';
+    });
+  }
+})();
+window.openExternal = () => {
+  const url = location.href;
+  navigator.clipboard?.writeText(url).then(()=>{
+    alert('링크가 복사됐습니다!\nChrome 또는 Safari에 붙여넣기 해주세요.\n\n' + url);
+  }).catch(()=>{ alert('Chrome 또는 Safari에서 아래 주소를 열어주세요:\n\n' + url); });
+};
 
 // ── 관리자/직원 전환 ──
 
@@ -1252,11 +1291,20 @@ async function loadSecurityInfo() {
 
 // 오늘 기록 로드
 async function loadTodayAtt() {
-  // 3교대 나이트 자정~08:30 → 전날 기록 체크
+  // 현재 선택된 교대 기준으로 날짜 계산
   let checkDate = today();
   if(settings.mode==='shift'){
-    const m2=new Date().getHours()*60+new Date().getMinutes();
-    if(m2<=8*60+30){ const y=new Date(); y.setDate(y.getDate()-1); checkDate=`${y.getFullYear()}-${pad(y.getMonth()+1)}-${pad(y.getDate())}`; }
+    const now2 = new Date();
+    const m2 = now2.getHours()*60+now2.getMinutes();
+    if(selectedShift){
+      // 선택된 교대 기준
+      const info = getShiftInfo(selectedShift, now2);
+      checkDate = info.shiftDate;
+    } else if(m2<=8*60+30){
+      // 자동: 자정~08:30 → 전날 나이트
+      const y=new Date(); y.setDate(y.getDate()-1);
+      checkDate=`${y.getFullYear()}-${pad(y.getMonth()+1)}-${pad(y.getDate())}`;
+    }
   }
   const snapDocId = `${me.uid}_${checkDate}`;
   console.log('loadTodayAtt 조회:', snapDocId);
@@ -1753,14 +1801,14 @@ window.exportTodayCSV = async () => {
   ]);
   const users=[]; uSnap.forEach(d=>users.push({id:d.id,...d.data()}));
   const aMap={}; aSnap.forEach(d=>{ const r=d.data(); aMap[r.uid]=r; });
-  const rows=[['이름','부서','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)','상태']];
+  const rows=[['이름','부서','교대','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)','상태','IP','기기ID','위도','경도']];
   users.sort((a,b)=>(a.dept||'').localeCompare(b.dept||'','ko')).forEach(u=>{
     const a=aMap[u.uid];
     const inT=a?.clockIn?fmt(a.clockIn.toDate()):'';
     const outT=a?.clockOut?fmt(a.clockOut.toDate()):'';
     const total=a?.clockIn&&a?.clockOut?Math.round((a.clockOut.toDate()-a.clockIn.toDate())/60000):0;
     const status=!a?'미출근':a.lateMin>0?'지각':a.otMin>0?'연장':'정상';
-    rows.push([u.name,u.dept||'',inT,outT,a?.lateMin||0,a?.earlyMin||0,a?.otMin||0,total,status]);
+    rows.push([u.name,u.dept||'',a?.shiftName||'',inT,outT,a?.lateMin||0,a?.earlyMin||0,a?.otMin||0,total,status,a?.clockInIp||'',a?.deviceId||'',a?.clockInGps?.lat||'',a?.clockInGps?.lng||'']);
   });
   dlCSV(rows, `출퇴근현황_${td}.csv`);
 };
@@ -1770,12 +1818,12 @@ window.exportMonthCSV = async () => {
   const m=$('report-month').value||nowMonth();
   const [y,mo]=m.split('-');
   const snap=await getDocs(query(collection(db,'attendance_simple'),where('date','>=',`${y}-${mo}-01`),where('date','<=',`${y}-${mo}-31`)));
-  const rows=[['이름','부서','날짜','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)']];
+  const rows=[['이름','부서','날짜','교대','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)','IP','기기ID','위도','경도']];
   snap.forEach(d=>{ const r=d.data();
     const inT=r.clockIn?fmt(r.clockIn.toDate()):'';
     const outT=r.clockOut?fmt(r.clockOut.toDate()):'';
     const total=r.clockIn&&r.clockOut?Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000):0;
-    rows.push([r.name,r.dept||'',r.date,inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total]);
+    rows.push([r.name,r.dept||'',r.date,r.shiftName||'',inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total,r.clockInIp||'',r.deviceId||'',r.clockInGps?.lat||'',r.clockInGps?.lng||'']);
   });
   dlCSV(rows, `월별근태_${m}.csv`);
 };
@@ -1784,12 +1832,12 @@ window.exportMonthCSV = async () => {
 window.exportDailyCSV = async () => {
   const d=$('daily-date').value||today();
   const snap=await getDocs(query(collection(db,'attendance_simple'),where('date','==',d)));
-  const rows=[['이름','부서','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)']];
+  const rows=[['이름','부서','교대','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)','IP','기기ID','위도','경도']];
   snap.forEach(doc=>{ const r=doc.data();
     const inT=r.clockIn?fmt(r.clockIn.toDate()):'';
     const outT=r.clockOut?fmt(r.clockOut.toDate()):'';
     const total=r.clockIn&&r.clockOut?Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000):0;
-    rows.push([r.name,r.dept||'',inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total]);
+    rows.push([r.name,r.dept||'',r.shiftName||'',inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total,r.clockInIp||'',r.deviceId||'',r.clockInGps?.lat||'',r.clockInGps?.lng||'']);
   });
   dlCSV(rows, `일별근태_${d}.csv`);
 };
@@ -2002,13 +2050,28 @@ window.openMember = async (uid) => {
       deviceEl.innerHTML='⚠️ 기기 미등록 (다음 로그인 시 자동 등록)';
     }
   }
-  // 슈퍼관리자만 권한 변경 가능
+  // 권한별 선택 가능 범위 제어
   const roleWrap=$('mem-role-wrap');
   const roleSelect=$('mem-role');
+  const roleDesc=$('mem-role-desc');
+  const isSuperAdmin = meData?.role==='superadmin';
+  const isAdmin = meData?.role==='admin';
   if(roleWrap){
-    const isSuperAdmin=meData?.role==='superadmin';
-    roleWrap.style.display=isSuperAdmin?'block':'none';
-    if(roleSelect) roleSelect.disabled=!isSuperAdmin;
+    if(isSuperAdmin){
+      // 최고관리자: 모든 권한 변경 가능
+      roleWrap.style.display='block';
+      roleSelect.disabled=false;
+      const optSA=$('opt-superadmin'); if(optSA) optSA.disabled=false;
+      if(roleDesc) roleDesc.textContent='최고관리자는 모든 권한으로 변경 가능합니다';
+    } else if(isAdmin){
+      // 관리자: 직원↔관리자만 가능 (최고관리자로 변경 불가)
+      roleWrap.style.display='block';
+      roleSelect.disabled=false;
+      const optSA=$('opt-superadmin'); if(optSA) optSA.disabled=true;
+      if(roleDesc) roleDesc.textContent='관리자는 최고관리자로 변경할 수 없습니다';
+    } else {
+      roleWrap.style.display='none';
+    }
   }
   $('modal-member').classList.add('open');
 };
@@ -2021,8 +2084,15 @@ window.saveMember = async () => {
     defaultIn:$('mem-in').value, defaultOut:$('mem-out').value,
     realName:true
   };
-  // 슈퍼관리자만 역할 변경 가능
-  if(meData?.role==='superadmin') updateData.role=$('mem-role').value;
+  // 권한 변경 제어
+  const newRole = $('mem-role').value;
+  if(meData?.role==='superadmin'){
+    updateData.role = newRole; // 최고관리자: 모두 가능
+  } else if(meData?.role==='admin'){
+    // 관리자: superadmin으로는 변경 불가
+    if(newRole !== 'superadmin') updateData.role = newRole;
+    else { toast('관리자는 최고관리자 권한을 부여할 수 없습니다','error'); return; }
+  }
   await updateDoc(doc(db,'users_simple',uid), updateData);
   closeModal('modal-member'); toast('저장됐습니다','success'); await loadMembers();
 };
@@ -2149,9 +2219,10 @@ window.loadMyHistory = async () => {
     const badge=r.lateMin>0?`<span class="badge b-late">지각</span>`:r.otMin>0?`<span class="badge b-ot">연장</span>`:r.earlyMin>0?`<span class="badge b-early">조퇴</span>`:`<span class="badge b-ok">정상</span>`;
     const [,, dd]=r.date.split('-'); const dow2=new Date(r.date+'T00:00:00').getDay();
     const dowCls=dow2===0?'color:var(--danger)':dow2===6?'color:#3b82f6':'';
+    const sIcon=r.shiftName==='데이'?'🌅 ':r.shiftName==='이브닝'?'🌆 ':r.shiftName==='나이트'?'🌙 ':r.shiftName==='오프'?'🏖️ ':'';
     html+=`<div class="week-row">
       <div class="week-day" style="${dowCls}">${dd}일 ${DAYS[dow2]}</div>
-      <div class="week-times" style="font-size:12px;">${inT} → ${outT}${mins?` (${Math.floor(mins/60)}h${mins%60}m)`:''}</div>
+      <div class="week-times" style="font-size:12px;">${sIcon}${inT} → ${outT}${mins?` (${Math.floor(mins/60)}h${mins%60}m)`:''}</div>
       ${badge}
     </div>`;
   });
@@ -2174,7 +2245,7 @@ window.exportMyCSV = async () => {
     const inT=r.clockIn?fmt(r.clockIn.toDate()):'';
     const outT=r.clockOut?fmt(r.clockOut.toDate()):'';
     const total=r.clockIn&&r.clockOut?Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000):0;
-    rows.push([r.date,inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total]);
+    rows.push([r.date,r.shiftName||'',inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total]);
   });
   dlCSV(rows,`내근무기록_${m}.csv`);
 };
@@ -2257,14 +2328,18 @@ window.loadWeekly = async () => {
 
 window.exportWeeklyCSV = async () => {
   const sun2 = getWeekSunday(weekBaseDate);
-  const dates=[]; for(let i=0;i<7;i++){ const d=new Date(sun2); d.setDate(sun2.getDate()+i); dates.push(d.toISOString().slice(0,10)); }
+  const dates=[];
+  for(let i=0;i<7;i++){
+    const d=new Date(sun2); d.setDate(sun2.getDate()+i);
+    dates.push(`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`);
+  }
   const snap=await getDocs(query(collection(db,'attendance_simple'),where('date','>=',dates[0]),where('date','<=',dates[6])));
-  const rows=[['이름','부서','날짜','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)']];
+  const rows=[['이름','부서','날짜','교대','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)','IP','기기ID','위도','경도']];
   snap.forEach(d=>{ const r=d.data();
     const inT=r.clockIn?fmt(r.clockIn.toDate()):'';
     const outT=r.clockOut?fmt(r.clockOut.toDate()):'';
     const total=r.clockIn&&r.clockOut?Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000):0;
-    rows.push([r.name,r.dept||'',r.date,inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total]);
+    rows.push([r.name,r.dept||'',r.date,r.shiftName||'',inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total,r.clockInIp||'',r.deviceId||'',r.clockInGps?.lat||'',r.clockInGps?.lng||'']);
   });
   dlCSV(rows,`주별근태_${wv}.csv`);
 };
@@ -2375,7 +2450,7 @@ window.exportMemberCSV = async () => {
     const inT=r.clockIn?fmt(r.clockIn.toDate()):'';
     const outT=r.clockOut?fmt(r.clockOut.toDate()):'';
     const total=r.clockIn&&r.clockOut?Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000):0;
-    rows.push([r.date,inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total]);
+    rows.push([r.date,r.shiftName||'',inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total]);
   });
   dlCSV(rows,`${name}_${m}_근무기록.csv`);
 };
