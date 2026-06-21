@@ -213,9 +213,9 @@ tr:hover td{opacity:0.92;}
   <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(160deg,#0a3320,var(--primary));padding:24px;">
     <div style="background:#fff;border-radius:20px;padding:28px 24px;width:100%;max-width:340px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.25);">
       <div style="font-size:48px;margin-bottom:12px;">⚠️</div>
-      <div style="font-size:17px;font-weight:700;margin-bottom:10px;">카카오톡 브라우저에서는<br>로그인이 불가합니다</div>
+      <div style="font-size:17px;font-weight:700;margin-bottom:10px;" id="inapp-title">카카오톡 브라우저에서는<br>로그인이 불가합니다</div>
       <div style="font-size:13px;color:var(--gray-500);line-height:1.8;margin-bottom:20px;">
-        구글 로그인 보안 정책으로 인해<br>카카오톡 내 브라우저에서는 사용할 수 없습니다.<br><br>
+        구글 로그인 보안 정책으로 인해<br>카카오톡·라인 내 브라우저에서는 사용할 수 없습니다.<br><br>
         아래 버튼을 눌러 외부 브라우저로 열어주세요.
       </div>
       <button onclick="openExternal()" style="width:100%;padding:14px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius);font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px;">
@@ -795,8 +795,16 @@ window.selectShift = window.selectShift;
 (function(){
   const ua = navigator.userAgent;
   const isKakao = /KAKAO/i.test(ua) || /kakaotalk/i.test(ua);
-  if(isKakao){
+  const isLine  = /Line\//i.test(ua);
+  const isInApp = isKakao || isLine;
+  if(isInApp){
     document.addEventListener('DOMContentLoaded', ()=>{
+      // 앱 이름 표시
+      const titleEl = document.getElementById('inapp-title');
+      if(titleEl){
+        const appName = isLine ? '라인' : '카카오톡';
+        titleEl.innerHTML = `${appName} 브라우저에서는<br>로그인이 불가합니다`;
+      }
       document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
       const pg = document.getElementById('page-kakao');
       if(pg) pg.classList.add('active');
