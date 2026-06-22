@@ -808,7 +808,16 @@ const DAYS = ['일','월','화','수','목','금','토'];
 // ── 유틸 ──
 const pad   = n => String(n).padStart(2,'0');
 const today = () => { const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
-const fmt   = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+// ── 한국시간(KST, Asia/Seoul) 헬퍼: 기기 시간대와 무관하게 항상 한국시간 ──
+const _kstFmt = new Intl.DateTimeFormat('en-GB',{ timeZone:'Asia/Seoul', hour:'2-digit', minute:'2-digit', hourCycle:'h23' });
+const kstHM = d => {
+  let h='00', m='00';
+  for(const x of _kstFmt.formatToParts(d)){ if(x.type==='hour')h=x.value; if(x.type==='minute')m=x.value; }
+  return `${h}:${m}`;
+};
+const kstMinutes = d => { const [h,m]=kstHM(d).split(':').map(Number); return h*60+m; };
+// 모든 시:분 표시는 한국시간 기준
+const fmt   = d => kstHM(d);
 const $     = id => document.getElementById(id);
 const nowM  = () => { const d=new Date(); return d.getHours()*60+d.getMinutes(); };
 const nowMonth = () => { const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}`; };
@@ -1671,16 +1680,18 @@ window.clockIn = async () => {
 
   // 3교대 모드 처리
   let shiftDate = today(), shiftName = '', shiftStart = '', shiftEnd = '', lateMin = 0;
+  let baseM = null, isContinuing = false; // 지각 계산 기준(분) / 자정 넘긴 나이트 여부
   if(settings.mode === 'shift'){
     // 사용자가 선택한 교대 우선, 없으면 자동 감지
     const shift = selectedShift || detectShift(now);
     if(shift && shift.name !== '오프'){
       const info = getShiftInfo(shift, now);
       shiftDate  = info.shiftDate;
-      lateMin    = info.lateMin;
       shiftName  = shift.name;
       shiftStart = shift.start;
       shiftEnd   = shift.end;
+      isContinuing = !!shift.continuing;
+      baseM = isContinuing ? 21*60 : shift.startM;
     }
     // 오프 또는 시간 외 → 그냥 현재 시간으로 기록 (shiftName 오프)
     if(selectedShift?.name === '오프') shiftName = '오프';
@@ -1688,7 +1699,7 @@ window.clockIn = async () => {
   } else {
     const inM = meData.defaultIn||settings.defaultIn||'09:00';
     const [sh,sm] = inM.split(':').map(Number);
-    lateMin  = nowM() > sh*60+sm+(parseInt(settings.lateMin)||5) ? nowM()-(sh*60+sm) : 0;
+    baseM = sh*60+sm;
     shiftStart = inM; shiftEnd = meData.defaultOut||settings.defaultOut||'18:00';
   }
 
@@ -1698,17 +1709,27 @@ window.clockIn = async () => {
     let clockInIp='';
     try { const r2=await fetch('https://api.ipify.org?format=json',{cache:'no-store'}); const d2=await r2.json(); clockInIp=d2.ip||''; } catch(e){}
     const docId = `${me.uid}_${shiftDate}`;
-    console.log('출근 저장 문서ID:', docId, 'shiftDate:', shiftDate);
-    await setDoc(doc(db,'attendance_simple',docId), {
+    const ref = doc(db,'attendance_simple',docId);
+    await setDoc(ref, {
       uid:me.uid, name:meData.name, dept:meData.dept||'', date:shiftDate,
-      clockIn:Timestamp.fromDate(now), clockOut:null,
-      lateMin, earlyMin:0, otMin:0,
+      clockIn:serverTimestamp(), clockOut:null,
+      lateMin:0, earlyMin:0, otMin:0,
       shiftName, shiftIn:shiftStart, shiftOut:shiftEnd,
       deviceId:getDeviceId(),
       clockInIp,
       clockInGps:myGps||null
     });
-    $('t-in').textContent=fmt(now); $('t-in').classList.remove('empty');
+    // 서버가 기록한 실제 시각을 다시 읽어 표시·지각 계산 (항상 한국시간 기준)
+    const inSnap = await getDoc(ref);
+    const serverIn = inSnap.data()?.clockIn?.toDate() || new Date();
+    if(baseM != null && !isContinuing){
+      const curM = kstMinutes(serverIn);
+      const grace = parseInt(settings.lateMin)||5;
+      lateMin = curM > baseM+grace ? curM-baseM : 0;
+    } else { lateMin = 0; }
+    if(lateMin > 0) await updateDoc(ref, { lateMin });
+    const timeStr2 = kstHM(serverIn);
+    $('t-in').textContent=timeStr2; $('t-in').classList.remove('empty');
     $('s-in').innerHTML=(shiftName?`<span style="font-size:10px;font-weight:600;color:var(--primary);">${shiftName}</span><br>`:'')+
       (lateMin>0?`<span class="badge b-late">지각 +${lateMin}분</span>`:`<span class="badge b-ok">정상</span>`);
     bi.textContent='출근 완료 ✓';
@@ -1717,7 +1738,6 @@ window.clockIn = async () => {
     // 출근 후 교대 선택 숨기기
     const sw=$('shift-select-wrap'); if(sw) sw.style.display='none';
     toast('출근 완료! ✓','success');
-    const timeStr2 = fmt(now);
     const shiftLabel2 = shiftName||'일반';
     if(lateMin > 0){
       await sendTelegram(`🟡 <b>[에스한방병원] 지각 출근</b>\n👤 ${meData.name} (${meData.dept||''})\n⏰ ${timeStr2} 출근 (지각 ${lateMin}분)\n📋 ${shiftLabel2} 근무\n📅 ${shiftDate}`);
@@ -1742,7 +1762,7 @@ window.clockOut = async () => {
   let targetDate = today();
   if(settings.mode === 'shift'){
     // 자정~08:30 → 전날 나이트 퇴근
-    const totalM2 = now.getHours()*60+now.getMinutes();
+    const totalM2 = kstMinutes(now);
     if(totalM2 <= 8*60+30){
       const yesterday = new Date(now); yesterday.setDate(yesterday.getDate()-1);
       targetDate = `${yesterday.getFullYear()}-${pad(yesterday.getMonth()+1)}-${pad(yesterday.getDate())}`;
@@ -1770,27 +1790,28 @@ window.clockOut = async () => {
     const [eh,em] = outM2.split(':').map(Number);
     endM = eh*60+em;
   }
-  const curM = now.getHours()*60+now.getMinutes();
-  // 나이트의 경우 curM이 작을 수 있어서 별도 처리
-  const earlyMin = (d.shiftName!=='나이트') && curM<endM-5 ? endM-curM : 0;
-  const otMin    = (d.shiftName!=='나이트') && curM>endM+5 ? curM-endM : 0;
+  const outRef = doc(db,'attendance_simple',`${me.uid}_${targetDate}`);
   try {
-    await updateDoc(doc(db,'attendance_simple',`${me.uid}_${targetDate}`), {
-      clockOut:Timestamp.fromDate(now), earlyMin, otMin
-    });
-    $('t-out').textContent=fmt(now); $('t-out').classList.remove('empty');
+    // 서버 시각으로 퇴근 기록 후 다시 읽어 계산 (항상 한국시간 기준)
+    await updateDoc(outRef, { clockOut:serverTimestamp() });
+    const outSnap = await getDoc(outRef);
+    const serverOut = outSnap.data()?.clockOut?.toDate() || new Date();
+    const curM = kstMinutes(serverOut);
+    const earlyMin = (d.shiftName!=='나이트') && curM<endM-5 ? endM-curM : 0;
+    const otMin    = (d.shiftName!=='나이트') && curM>endM+5 ? curM-endM : 0;
+    await updateDoc(outRef, { earlyMin, otMin });
+    const outTimeStr = kstHM(serverOut);
+    $('t-out').textContent=outTimeStr; $('t-out').classList.remove('empty');
     $('s-out').innerHTML=otMin>0?`<span class="badge b-ot">연장 +${otMin}분</span>`:earlyMin>0?`<span class="badge b-early">조퇴 -${earlyMin}분</span>`:`<span class="badge b-ok">정상</span>`;
     bo.textContent='퇴근 완료 ✓';
     const bcoShow=$('btn-cancel-out'); if(bcoShow) bcoShow.style.display='block';
     const bciHide=$('btn-cancel-in'); if(bciHide) bciHide.style.display='none';
-    const mins=Math.round((now-d.clockIn.toDate())/60000);
+    const mins=Math.round((serverOut-d.clockIn.toDate())/60000);
     const tb=$('total-box'); tb.textContent=`오늘 총 근무: ${Math.floor(mins/60)}시간 ${mins%60}분`; tb.style.display='block';
     toast('퇴근 완료! ✓','success');
-    const outTimeStr = fmt(now);
     const shiftLabelOut = d.shiftName||'일반';
-    const mins2 = Math.round((now - d.clockIn.toDate()) / 60000);
-    const workHour = Math.floor(mins2/60);
-    const workMin2 = mins2%60;
+    const workHour = Math.floor(mins/60);
+    const workMin2 = mins%60;
     if(otMin > 0){
       await sendTelegram(`🔵 <b>[에스한방병원] 연장근무 퇴근</b>\n👤 ${meData.name} (${meData.dept||''})\n⏰ ${outTimeStr} 퇴근 (연장 ${otMin}분)\n📋 ${shiftLabelOut} 근무 · 총 ${workHour}h ${workMin2}m\n📅 ${targetDate}`);
       await sendMyTelegram(`🔵 <b>연장근무 퇴근</b>\n⏰ ${outTimeStr} 퇴근 (연장 ${otMin}분)\n📋 ${shiftLabelOut} · 총 ${workHour}h ${workMin2}m`);
