@@ -174,7 +174,7 @@ tr:hover td{opacity:0.92;}
 .cal-date{font-size:11px;font-weight:700;color:var(--gray-500);margin-bottom:3px;}
 .cal-date.sun{color:var(--danger);}
 .cal-date.sat{color:#3b82f6;}
-.cal-chip{font-size:9px;font-weight:600;padding:2px 5px;border-radius:4px;margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;}
+.cal-chip{font-size:9px;font-weight:600;padding:3px 5px;border-radius:4px;margin-bottom:2px;cursor:pointer;white-space:normal;word-break:keep-all;position:relative;line-height:1.4;}
 .cal-chip:hover .cal-tooltip{display:block;}
 .cal-chip:focus .cal-tooltip{display:block;}
 .cal-chip.tip-open .cal-tooltip{display:block;}
@@ -182,7 +182,7 @@ tr:hover td{opacity:0.92;}
 .cal-chip.eve-chip{background:#eff6ff;color:#1d4ed8;}
 .cal-chip.ngt-chip{background:#eef2ff;color:#4338ca;}
 .cal-chip.etc-chip{background:var(--gray-100);color:var(--gray-500);}
-.cal-tooltip{display:none;position:absolute;left:0;top:100%;z-index:200;background:#1f2937;color:#fff;font-size:11px;padding:8px 10px;border-radius:8px;min-width:160px;line-height:1.8;box-shadow:0 4px 12px rgba(0,0,0,.3);pointer-events:none;}
+.cal-tooltip{display:none;position:fixed;z-index:9000;background:#1f2937;color:#fff;font-size:12px;padding:10px 12px;border-radius:10px;min-width:160px;max-width:240px;line-height:1.8;box-shadow:0 4px 20px rgba(0,0,0,.4);pointer-events:none;white-space:normal;}
 
 /* 모달 */
 .modal-back{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:flex-end;justify-content:center;}
@@ -2587,14 +2587,12 @@ async function renderCalendar() {
   const [y, mo] = m.split('-');
   const deptF = $('report-dept').value;
 
-  // 해당 월 전체 기록 로드
   const snap = await getDocs(query(
     collection(db,'attendance_simple'),
     where('date','>=',`${y}-${mo}-01`),
     where('date','<=',`${y}-${mo}-31`)
   ));
 
-  // date별 기록 맵핑
   const dayMap = {};
   snap.forEach(d => {
     const r = d.data();
@@ -2603,19 +2601,17 @@ async function renderCalendar() {
     dayMap[r.date].push(r);
   });
 
-  // 달력 생성
   const firstDay = new Date(`${y}-${mo}-01`);
   const lastDay  = new Date(parseInt(y), parseInt(mo), 0);
-  const startDow = firstDay.getDay(); // 0=일
+  const startDow = firstDay.getDay();
   const totalDays = lastDay.getDate();
-
   const DAYS_KO = ['일','월','화','수','목','금','토'];
+
   let html = `<div style="text-align:center;font-size:15px;font-weight:700;color:var(--gray-800);margin-bottom:10px;">${y}년 ${parseInt(mo)}월</div>`;
   html += '<div class="cal-head">';
   DAYS_KO.forEach(d => html += `<div class="cal-head-cell">${d}</div>`);
   html += '</div><div class="cal-grid">';
 
-  // 앞 빈칸
   for(let i=0; i<startDow; i++) html += '<div class="cal-cell empty"></div>';
 
   for(let day=1; day<=totalDays; day++){
@@ -2623,7 +2619,6 @@ async function renderCalendar() {
     const dow = new Date(dateStr+'T00:00:00').getDay();
     const records = dayMap[dateStr] || [];
 
-    // 교대별 그룹
     const groups = { '데이':[], '이브닝':[], '나이트':[], '기타':[] };
     records.forEach(r => {
       const k = r.shiftName==='데이'?'데이':r.shiftName==='이브닝'?'이브닝':r.shiftName==='나이트'?'나이트':'기타';
@@ -2634,35 +2629,40 @@ async function renderCalendar() {
     html += `<div class="cal-cell">`;
     html += `<div class="cal-date ${dowClass}">${day}</div>`;
 
-    // 데이
-    if(groups['데이'].length > 0){
-      const names = groups['데이'].map(r=>`${r.name} ${r.clockIn?fmt(r.clockIn.toDate()):'?'}→${r.clockOut?fmt(r.clockOut.toDate()):'재직'}`).join('<br>');
-      const label = groups['데이'].length<=2 ? groups['데이'].map(r=>r.name).join(', ') : `${groups['데이'][0].name} 외 ${groups['데이'].length-1}명`;
-      html += `<div class="cal-chip day-chip" onclick="toggleTip(this)">🌅 ${label}<div class="cal-tooltip">🌅 데이 (${groups['데이'].length}명)<br>${names}</div></div>`;
-    }
-    // 이브닝
-    if(groups['이브닝'].length > 0){
-      const names = groups['이브닝'].map(r=>`${r.name} ${r.clockIn?fmt(r.clockIn.toDate()):'?'}→${r.clockOut?fmt(r.clockOut.toDate()):'재직'}`).join('<br>');
-      const label = groups['이브닝'].length<=2 ? groups['이브닝'].map(r=>r.name).join(', ') : `${groups['이브닝'][0].name} 외 ${groups['이브닝'].length-1}명`;
-      html += `<div class="cal-chip eve-chip" onclick="toggleTip(this)">🌆 ${label}<div class="cal-tooltip">🌆 이브닝 (${groups['이브닝'].length}명)<br>${names}</div></div>`;
-    }
-    // 나이트
-    if(groups['나이트'].length > 0){
-      const names = groups['나이트'].map(r=>`${r.name} ${r.clockIn?fmt(r.clockIn.toDate()):'?'}→${r.clockOut?fmt(r.clockOut.toDate()):'재직'}`).join('<br>');
-      const label = groups['나이트'].length<=2 ? groups['나이트'].map(r=>r.name).join(', ') : `${groups['나이트'][0].name} 외 ${groups['나이트'].length-1}명`;
-      html += `<div class="cal-chip ngt-chip" onclick="toggleTip(this)">🌙 ${label}<div class="cal-tooltip">🌙 나이트 (${groups['나이트'].length}명)<br>${names}</div></div>`;
-    }
-    // 기타
-    if(groups['기타'].length > 0){
-      const names = groups['기타'].map(r=>`${r.name} ${r.clockIn?fmt(r.clockIn.toDate()):'?'}→${r.clockOut?fmt(r.clockOut.toDate()):'재직'}`).join('<br>');
-      const label = groups['기타'].length<=2 ? groups['기타'].map(r=>r.name).join(', ') : `${groups['기타'][0].name} 외 ${groups['기타'].length-1}명`;
-      html += `<div class="cal-chip etc-chip" onclick="toggleTip(this)">📋 ${label}<div class="cal-tooltip">📋 기타 (${groups['기타'].length}명)<br>${names}</div></div>`;
-    }
+    // 각 교대별 이름 전부 표시
+    const shiftDefs = [
+      { key:'데이',   cls:'day-chip', icon:'🌅', time:'07:00~15:00' },
+      { key:'이브닝', cls:'eve-chip', icon:'🌆', time:'14:00~22:00' },
+      { key:'나이트', cls:'ngt-chip', icon:'🌙', time:'21:00~08:00' },
+      { key:'기타',   cls:'etc-chip', icon:'📋', time:'' },
+    ];
+
+    shiftDefs.forEach(({key, cls, icon, time}) => {
+      const grp = groups[key];
+      if(!grp.length) return;
+
+      // 이름 전부 나열
+      const nameList = grp.map(r => r.name).join(', ');
+
+      // 툴팁: 이름별 출퇴근 시간
+      const tipRows = grp.map(r => {
+        const inT  = r.clockIn  ? fmt(r.clockIn.toDate())  : '?';
+        const outT = r.clockOut ? fmt(r.clockOut.toDate()) : '재직';
+        const late = r.lateMin>0 ? ` 지각+${r.lateMin}분` : '';
+        return `${r.name}: ${inT}→${outT}${late}`;
+      }).join('<br>');
+
+      const tipHeader = `${icon} ${key}${time?' ('+time+')':''} ${grp.length}명`;
+
+      html += `<div class="cal-chip ${cls}" onclick="toggleTip(this)" tabindex="0">
+        ${icon} ${nameList}
+        <div class="cal-tooltip"><b>${tipHeader}</b><br>${tipRows}</div>
+      </div>`;
+    });
 
     html += '</div>';
   }
 
-  // 뒤 빈칸
   const endDow = lastDay.getDay();
   for(let i=endDow+1; i<7; i++) html += '<div class="cal-cell empty"></div>';
   html += '</div>';
@@ -2670,14 +2670,29 @@ async function renderCalendar() {
   $('monthly-calendar').innerHTML = html;
 }
 
+
 // 달력 툴팁 토글 (모바일/PC 공용)
 window.toggleTip = (el) => {
   const isOpen = el.classList.contains('tip-open');
-  // 다른 열린 툴팁 모두 닫기
   document.querySelectorAll('.cal-chip.tip-open').forEach(c => c.classList.remove('tip-open'));
-  if(!isOpen) el.classList.add('tip-open');
-  // 3초 후 자동 닫기
-  if(!isOpen) setTimeout(() => el.classList.remove('tip-open'), 3000);
+  if(!isOpen){
+    el.classList.add('tip-open');
+    // 툴팁 위치 계산
+    const tip = el.querySelector('.cal-tooltip');
+    if(tip){
+      const rect = el.getBoundingClientRect();
+      const tipW = 240, tipH = 120;
+      let left = rect.left;
+      let top  = rect.bottom + 4;
+      // 화면 오른쪽 넘으면 왼쪽으로
+      if(left + tipW > window.innerWidth - 8) left = window.innerWidth - tipW - 8;
+      // 화면 아래 넘으면 위로
+      if(top + tipH > window.innerHeight - 8) top = rect.top - tipH - 4;
+      tip.style.left = left + 'px';
+      tip.style.top  = top  + 'px';
+    }
+    setTimeout(() => el.classList.remove('tip-open'), 4000);
+  }
 };
 // 달력 외부 클릭 시 툴팁 닫기
 document.addEventListener('click', (e) => {
