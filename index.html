@@ -427,9 +427,10 @@ tr:hover td{opacity:0.92;}
           5️⃣ 아래에 붙여넣고 저장<br>
           <span style="color:#dc2626;">⚠️ "bot can't initiate conversation" 오류는 Chat ID가 아니라 <b>1번(봇 시작)을 안 해서</b> 생깁니다.</span>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <input type="text" id="my-tg-chatid" placeholder="Chat ID 입력 (예: 123456789)" style="flex:1;padding:10px 12px;border:1.5px solid var(--gray-200);border-radius:10px;font-size:14px;font-family:monospace;">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="text" id="my-tg-chatid" placeholder="Chat ID 입력 (예: 123456789)" style="flex:1 1 140px;min-width:120px;padding:10px 12px;border:1.5px solid var(--gray-200);border-radius:10px;font-size:14px;font-family:monospace;">
           <button onclick="saveMyTelegram()" style="padding:10px 16px;background:#0088cc;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">💾 저장</button>
+          <button onclick="deleteMyTelegram()" style="padding:10px 14px;background:#fff;color:var(--danger);border:1.5px solid var(--danger);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">🗑 삭제</button>
         </div>
         <div style="font-size:11px;margin-top:6px;" id="my-tg-status"></div>
       </div>
@@ -1199,6 +1200,26 @@ window.saveMyTelegram = async () => {
   } catch(e){
     statusEl.textContent = '오류: '+e.message;
     statusEl.style.color = 'var(--danger)';
+  }
+};
+
+// ── 개인 텔레그램 알림 삭제 ──
+window.deleteMyTelegram = async () => {
+  const statusEl = $('my-tg-status');
+  const input = $('my-tg-chatid');
+  // 저장된 것도 입력된 것도 없으면 안내만
+  if(!meData?.tgChatId && !input.value.trim()){
+    if(statusEl){ statusEl.textContent = '삭제할 알림 설정이 없습니다'; statusEl.style.color = 'var(--gray-400)'; statusEl.style.lineHeight='1.8'; }
+    return;
+  }
+  if(!confirm('개인 텔레그램 알림을 삭제하시겠습니까?\n\n삭제하면 더 이상 개인 알림을 받지 않습니다.')) return;
+  try {
+    await updateDoc(doc(db,'users_simple',me.uid),{ tgChatId: '' });
+    meData.tgChatId = '';
+    input.value = '';
+    if(statusEl){ statusEl.textContent = '🗑 알림 설정이 삭제됐습니다'; statusEl.style.color = 'var(--gray-500)'; statusEl.style.lineHeight='1.8'; }
+  } catch(e){
+    if(statusEl){ statusEl.textContent = '오류: '+e.message; statusEl.style.color = 'var(--danger)'; }
   }
 };
 
