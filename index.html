@@ -355,6 +355,12 @@ tr:hover td{opacity:0.92;}
       <div class="net-dot"></div>
       <span id="net-text">네트워크 확인 중...</span>
     </div>
+    <!-- 아이폰 사용자 안내 -->
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:12px;color:#9a3412;line-height:1.8;">
+      <b>🍎 아이폰 사용자 필독</b><br>
+      출퇴근이 안 될 경우 아래 설정을 확인하세요.<br>
+      <b>설정 → Wi-Fi → 병원 WiFi 옆 ⓘ → IP 주소 제한 → 끄기</b>
+    </div>
     <!-- 출퇴근 -->
     <div class="card">
       <!-- 교대 선택 (3교대 모드일 때만 표시) -->
@@ -869,6 +875,15 @@ window.selectShift = async (shiftName) => {
 // selectShift를 window에 등록 (onclick에서 호출)
 window.selectShift = window.selectShift;
 
+// ── 교대 선택 표시 여부 단일 판단 (3교대 모드 + 출근 완료 전이면 표시) ──
+function refreshShiftWrap() {
+  const sw = $('shift-select-wrap');
+  if(!sw) return;
+  const clockInDone = $('btn-in').textContent.includes('완료');
+  sw.style.display = (settings.mode==='shift' && !clockInDone) ? 'block' : 'none';
+}
+window.refreshShiftWrap = refreshShiftWrap;
+
 // ── 카카오톡 브라우저 감지 ──
 (function(){
   const ua = navigator.userAgent;
@@ -1111,11 +1126,11 @@ async function loadEmpPage() {
   // 설정 로드 + 오늘 기록 순서대로 await
   await loadSettings();
   await loadTodayAtt(); // 출근 완료 여부 먼저 확인
-  // 출근 완료 상태가 아닐 때만 교대 선택 표시
-  const isClockInDone = $('btn-in').textContent.includes('완료');
-  const shiftWrap=$('shift-select-wrap');
-  if(shiftWrap) shiftWrap.style.display=(settings.mode==='shift'&&!isClockInDone)?'block':'none';
-  if(settings.mode==='shift'&&!isClockInDone) autoDetectAndSelectShift();
+  // 3교대 모드 & 출근 완료 전이면 교대 자동감지 후 선택 메뉴 표시
+  if(settings.mode==='shift' && !$('btn-in').textContent.includes('완료')){
+    await autoDetectAndSelectShift();
+  }
+  refreshShiftWrap();
   updateShiftBanner();
   loadWeek();
   $('my-month').value = nowMonth();
@@ -1483,7 +1498,7 @@ async function loadTodayAtt() {
     const snap2 = await getDoc(doc(db,'attendance_simple',`${me.uid}_${today()}`));
     if(snap2.exists()) snap = snap2;
   }
-  if (!snap.exists()) { updateBtns(); return; }
+  if (!snap.exists()) { updateBtns(); refreshShiftWrap(); return; }
   const d = snap.data();
   if (d.clockIn) {
     const t = d.clockIn.toDate();
@@ -1506,6 +1521,7 @@ async function loadTodayAtt() {
     // 출근만 한 상태
     $('btn-out').className = 'btn-clock btn-cout'; $('btn-out').textContent = '퇴근';
   }
+  refreshShiftWrap();
 }
 
 function updateBtns() {
