@@ -669,6 +669,39 @@ tr:hover td{opacity:0.92;}
         </div>
         <button class="btn btn-primary" onclick="saveSettings()">저장</button>
       </div>
+
+      <!-- 데이터 초기화 (슈퍼관리자만) -->
+      <div id="reset-section" style="display:none;margin-top:16px;">
+        <div class="card" style="border:2px solid var(--danger);">
+          <div style="font-size:13px;font-weight:700;color:var(--danger);margin-bottom:12px;">⚠️ 위험 구역 — 데이터 초기화</div>
+
+          <div style="background:var(--danger-light);border-radius:8px;padding:10px 12px;font-size:12px;color:#991b1b;line-height:1.7;margin-bottom:14px;">
+            아래 기능은 되돌릴 수 없습니다.<br>
+            직원 계정은 유지되며 출퇴근 기록만 삭제됩니다.
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <!-- 특정 월 삭제 -->
+            <div style="padding:12px;background:var(--gray-50);border-radius:10px;">
+              <div style="font-size:12px;font-weight:600;margin-bottom:8px;">📅 특정 월 기록 삭제</div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input type="month" id="reset-month" style="flex:1;padding:8px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;">
+                <button onclick="resetMonthData()" style="padding:8px 14px;background:var(--warning);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">삭제</button>
+              </div>
+            </div>
+
+            <!-- 전체 기록 삭제 -->
+            <div style="padding:12px;background:var(--danger-light);border-radius:10px;">
+              <div style="font-size:12px;font-weight:600;color:var(--danger);margin-bottom:8px;">🗑️ 전체 출퇴근 기록 삭제</div>
+              <div style="font-size:11px;color:#991b1b;margin-bottom:8px;">확인을 위해 아래에 <b>전체삭제</b> 를 입력하세요</div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input type="text" id="reset-confirm" placeholder="전체삭제" style="flex:1;padding:8px;border:1.5px solid var(--danger);border-radius:8px;font-size:13px;">
+                <button onclick="resetAllData()" style="padding:8px 14px;background:var(--danger);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">전체 삭제</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -723,7 +756,7 @@ tr:hover td{opacity:0.92;}
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, query, where, getDocs, serverTimestamp, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, writeBatch, collection, query, where, getDocs, serverTimestamp, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 const app = initializeApp({
   apiKey:"AIzaSyDYRwZQGjrZbT_jrawL9kUfpVCkE-KMqlU",
@@ -2158,6 +2191,9 @@ function getWeekNum(d) {
 
 // 설정
 async function loadSettings2(){
+  // 슈퍼관리자만 초기화 섹션 표시
+  const resetSec=$('reset-section');
+  if(resetSec) resetSec.style.display=meData?.role==='superadmin'?'block':'none';
   await loadSettings();
   $('set-ip').value        = settings.ip||'';
   $('set-tg-enabled').value= settings.tgEnabled===false?'false':'true';
@@ -2179,6 +2215,60 @@ async function loadSettings2(){
     $('shift-settings').style.display=s?'block':'none';
   };
 }
+// ── 데이터 초기화 (슈퍼관리자 전용) ──
+window.resetMonthData = async () => {
+  const m = $('reset-month').value;
+  if(!m){ toast('월을 선택하세요','error'); return; }
+  const [y,mo] = m.split('-');
+  if(!confirm(`⚠️ ${y}년 ${parseInt(mo)}월 출퇴근 기록을 전부 삭제할까요?\n\n이 작업은 되돌릴 수 없습니다.`)) return;
+
+  toast('삭제 중...','default');
+  try {
+    const snap = await getDocs(query(
+      collection(db,'attendance_simple'),
+      where('date','>=',`${y}-${mo}-01`),
+      where('date','<=',`${y}-${mo}-31`)
+    ));
+    const batch = writeBatch(db);
+    snap.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+    toast(`✅ ${y}년 ${parseInt(mo)}월 기록 ${snap.size}건 삭제 완료`,'success');
+  } catch(e){ toast('오류: '+e.message,'error'); }
+};
+
+window.resetAllData = async () => {
+  const confirm1 = $('reset-confirm').value.trim();
+  if(confirm1 !== '전체삭제'){
+    toast('"전체삭제" 를 정확히 입력하세요','error'); return;
+  }
+  if(!confirm('⚠️ 경고: 모든 출퇴근 기록을 삭제합니다!\n\n직원 계정은 유지됩니다.\n이 작업은 절대 되돌릴 수 없습니다.\n\n정말 삭제하시겠습니까?')) return;
+  if(!confirm('마지막 확인: 전체 출퇴근 기록을 영구 삭제합니다. 계속하시겠습니까?')) return;
+
+  toast('전체 삭제 중...','default');
+  try {
+    // 배치로 전체 삭제 (500개씩)
+    let total = 0;
+    let snap = await getDocs(collection(db,'attendance_simple'));
+    while(!snap.empty){
+      const batch = writeBatch(db);
+      snap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      total += snap.size;
+      if(snap.size < 500) break;
+      snap = await getDocs(collection(db,'attendance_simple'));
+    }
+    // cancel_logs도 삭제
+    const cSnap = await getDocs(collection(db,'cancel_logs'));
+    if(!cSnap.empty){
+      const batch2 = writeBatch(db);
+      cSnap.forEach(d => batch2.delete(d.ref));
+      await batch2.commit();
+    }
+    $('reset-confirm').value = '';
+    toast(`✅ 전체 기록 ${total}건 삭제 완료`,'success');
+  } catch(e){ toast('오류: '+e.message,'error'); }
+};
+
 window.saveSettings = async () => {
   const mode=$('set-mode').value;
   const data={
