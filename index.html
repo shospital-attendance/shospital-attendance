@@ -414,11 +414,12 @@ tr:hover td{opacity:0.92;}
         <div style="font-size:13px;font-weight:600;color:var(--gray-500);margin-bottom:8px;">📲 개인 텔레그램 알림 설정</div>
         <div style="background:#f0f9ff;border-radius:10px;padding:12px;font-size:12px;color:#0369a1;line-height:1.9;margin-bottom:10px;">
           <b>✅ 설정 방법</b><br>
-          1️⃣ 텔레그램 앱에서 <b>@raw_info_bot</b> 검색<br>
-          2️⃣ <b>시작</b> 버튼 또는 아무 메시지 입력<br>
-          3️⃣ 표시되는 <b>"id": 숫자</b> 복사<br>
-          4️⃣ 아래에 붙여넣고 저장<br>
-          5️⃣ 텔레그램에서 <b>@shospital_notify_bot</b> 검색 후 <b>시작</b> 클릭 (필수!)
+          1️⃣ 텔레그램에서 <b>@shospital_notify_bot</b> 검색 후 <b>시작(Start)</b> 클릭 <b style="color:#dc2626;">← 이걸 먼저! (필수)</b><br>
+          2️⃣ 텔레그램 앱에서 <b>@raw_info_bot</b> 검색<br>
+          3️⃣ <b>시작</b> 버튼 또는 아무 메시지 입력<br>
+          4️⃣ 표시되는 <b>"id": 숫자</b> 복사<br>
+          5️⃣ 아래에 붙여넣고 저장<br>
+          <span style="color:#dc2626;">⚠️ "bot can't initiate conversation" 오류는 Chat ID가 아니라 <b>1번(봇 시작)을 안 해서</b> 생깁니다.</span>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
           <input type="text" id="my-tg-chatid" placeholder="Chat ID 입력 (예: 123456789)" style="flex:1;padding:10px 12px;border:1.5px solid var(--gray-200);border-radius:10px;font-size:14px;font-family:monospace;">
@@ -1143,14 +1144,33 @@ window.saveMyTelegram = async () => {
     if(snap.exists()){
       const { tgToken, tgEnabled } = snap.data();
       if(tgEnabled && tgToken){
+        // 알림봇의 실제 username을 가져와 '시작하기' 링크에 사용
+        let botUsername = 'shospital_notify_bot';
+        try {
+          const meRes = await fetch(`https://api.telegram.org/bot${tgToken}/getMe`);
+          const meJson = await meRes.json();
+          if(meJson.ok && meJson.result?.username) botUsername = meJson.result.username;
+        } catch(_){}
+
         const res = await fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`,{
           method:'POST', headers:{'Content-Type':'application/json'},
           body:JSON.stringify({ chat_id:chatId, text:`✅ <b>[에스한방병원]</b> 출퇴근 알림이 연결됐습니다!\n👤 ${meData.name}님의 출퇴근 알림을 이 채팅으로 받습니다.`, parse_mode:'HTML' })
         });
         const data = await res.json();
         if(!data.ok){
-          statusEl.textContent = `오류: ${data.description} — Chat ID를 다시 확인해주세요`;
+          const desc = (data.description||'').toLowerCase();
+          // 가장 흔한 원인: 직원이 알림봇을 '시작(Start)'하지 않음 → ID 문제 아님
+          if(desc.includes("can't initiate") || desc.includes('chat not found') || desc.includes('bot was blocked') || desc.includes('user is deactivated')){
+            statusEl.innerHTML = `⚠️ <b>@${botUsername}</b> 봇을 아직 시작하지 않았습니다.<br>
+              아래 버튼을 눌러 봇 대화창을 연 뒤 <b>시작(Start)</b>을 누르고, 다시 <b>💾 저장</b>을 눌러주세요.<br>
+              <a href="https://t.me/${botUsername}?start=connect" target="_blank" rel="noopener"
+                 style="display:inline-block;margin-top:8px;padding:9px 14px;background:#0088cc;color:#fff;border-radius:8px;font-weight:700;text-decoration:none;font-size:13px;">
+                 👉 @${botUsername} 시작하기</a>`;
+          } else {
+            statusEl.textContent = `오류: ${data.description}`;
+          }
           statusEl.style.color = 'var(--danger)';
+          statusEl.style.lineHeight = '1.8';
           return;
         }
       }
