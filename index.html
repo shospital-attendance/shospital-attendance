@@ -869,6 +869,8 @@ window.selectShift = async (shiftName) => {
   $('total-box').style.display='none';
   // 교대 선택 표시 유지
   const sw=$('shift-select-wrap'); if(sw) sw.style.display='block';
+  // 선택한 교대로 배너 즉시 갱신
+  updateShiftBanner();
   // 해당 교대 날짜 기록 다시 조회
   await loadTodayAtt();
 };
@@ -1369,15 +1371,18 @@ async function autoDetectAndSelectShift() {
 // 3교대 배너 업데이트
 function updateShiftBanner() {
   if(settings.mode !== 'shift') { $('shift-detect-banner').style.display='none'; return; }
-  const now = new Date();
-  const shift = detectShift(now);
   const banner = $('shift-detect-banner');
-  if(shift){
+  banner.style.display = 'block';
+  banner.style.background = '';
+  banner.style.color = '';
+  // 사용자가 직접 고른 교대가 있으면 그걸 우선 표시, 없으면 현재 시각 기준 자동감지
+  const shift = selectedShift || detectShift(new Date());
+  if(shift && shift.name === '오프'){
+    banner.textContent = '🏖️ 오프 (자유근무 · 출근 기록됩니다)';
+  } else if(shift && shift.name){
     const icon = shift.name==='데이'?'🌅':shift.name==='이브닝'?'🌆':'🌙';
-    banner.style.display = 'block';
     banner.textContent = `${icon} ${shift.name} 근무 (${shift.start} ~ ${shift.end})`;
   } else {
-    banner.style.display = 'block';
     banner.style.background = 'var(--gray-100)';
     banner.style.color = 'var(--gray-500)';
     banner.textContent = '교대 인식 시간 외 (오프 출근도 기록됩니다)';
