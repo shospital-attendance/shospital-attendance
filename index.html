@@ -2728,6 +2728,7 @@ window.loadCancelLogs = async () => {
       return bt-at;
     });
     let html='';
+    const isSuper = meData?.role==='superadmin';
     docs.forEach(r=>{
       const cancelTime = r.cancelledAt?.toDate();
       const cancelStr = cancelTime ? `${r.date} ${fmt(cancelTime)}` : r.date;
@@ -2742,7 +2743,10 @@ window.loadCancelLogs = async () => {
             <span style="font-size:14px;font-weight:700;color:var(--gray-900);">${r.name}</span>
             <span style="font-size:12px;color:var(--gray-400);margin-left:6px;">${r.dept||''}</span>
           </div>
-          <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:8px;background:${bgColor};color:${badgeColor};">${r.type}</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:8px;background:${bgColor};color:${badgeColor};">${r.type}</span>
+            ${isSuper?`<button onclick="deleteCancelLog('${r.id}')" title="이 취소 이력 삭제" style="padding:3px 8px;border:1px solid var(--gray-200);border-radius:8px;background:#fff;color:var(--gray-400);font-size:11px;font-weight:600;cursor:pointer;">🗑 삭제</button>`:''}
+          </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:12px;">
           <div style="background:var(--gray-50);border-radius:8px;padding:8px;">
@@ -2765,6 +2769,17 @@ window.loadCancelLogs = async () => {
   } catch(e){
     $('cancel-log-list').innerHTML=`<div style="text-align:center;color:var(--danger);padding:20px;">오류: ${e.message}</div>`;
   }
+};
+
+// ── 취소 이력 삭제 (슈퍼관리자 전용) ──
+window.deleteCancelLog = async (id) => {
+  if(meData?.role!=='superadmin'){ toast('슈퍼관리자만 삭제할 수 있습니다','error'); return; }
+  if(!confirm('⚠️ 이 취소 이력을 삭제하시겠습니까?\n\n삭제하면 복구할 수 없습니다.')) return;
+  try {
+    await deleteDoc(doc(db,'cancel_logs',id));
+    toast('취소 이력이 삭제됐습니다','success');
+    loadCancelLogs();
+  } catch(e){ toast('오류: '+e.message,'error'); }
 };
 
 // 텔레그램 테스트
