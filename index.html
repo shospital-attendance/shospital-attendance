@@ -940,7 +940,7 @@ onAuthStateChanged(auth, async user => {
       createdAt:serverTimestamp()
     });
     // 관리자에게 텔레그램 알림 (가입 승인 안내 포함)
-    const approveUrl = `https://shospital-attendance.github.io/shospital-attendance/`;
+    const approveUrl = location.origin + location.pathname;
     await sendTelegram(`👋 <b>[에스한방병원] 신규 가입 요청</b>\n👤 ${user.displayName||'이름없음'}\n📧 ${user.email}\n\n앱에서 직원 관리 탭으로 이동해 승인해주세요.\n🔗 ${approveUrl}`);
     showPage('page-pending');
     $('pending-msg').textContent = `${user.email}\n가입 신청이 완료됐습니다.\n관리자 승인 후 이용 가능합니다.`;
