@@ -2372,7 +2372,10 @@ window.exportWeeklyCSV = async () => {
     const total=r.clockIn&&r.clockOut?Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000):0;
     rows.push([r.name,r.dept||'',r.date,r.shiftName||'',inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total,r.clockInIp||'',r.deviceId||'',r.clockInGps?.lat||'',r.clockInGps?.lng||'']);
   });
-  dlCSV(rows,`주별근태_${wv}.csv`);
+  const sun2Label = `${sun2.getFullYear()}-${pad(sun2.getMonth()+1)}-${pad(sun2.getDate())}`;
+  const sat2 = new Date(sun2); sat2.setDate(sun2.getDate()+6);
+  const sat2Label = `${sat2.getFullYear()}-${pad(sat2.getMonth()+1)}-${pad(sat2.getDate())}`;
+  dlCSV(rows,`주별근태_${sun2Label}~${sat2Label}.csv`);
 };
 
 // ── 직원별 조회 ──
@@ -2474,14 +2477,16 @@ window.exportMemberCSV = async () => {
   const allSnap=await getDocs(query(collection(db,'attendance_simple'),where('uid','==',uid)));
   const filteredDocs=[]; allSnap.forEach(d=>{ const r=d.data(); if(r.date>=`${y}-${mo}-01`&&r.date<=`${y}-${mo}-31`) filteredDocs.push(r); });
   const snap={forEach:(fn)=>filteredDocs.forEach(r=>fn({data:()=>r}))};
-  const rows=[['날짜','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)']];
+  const rows=[['날짜','교대','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)','IP','기기ID','위도','경도']];
   let name='직원';
-  snap.forEach(d=>{ const r=d.data();
+  // 날짜 오름차순 정렬
+  filteredDocs.sort((a,b)=>a.date.localeCompare(b.date));
+  filteredDocs.forEach(r=>{
     name=r.name||name;
     const inT=r.clockIn?fmt(r.clockIn.toDate()):'';
     const outT=r.clockOut?fmt(r.clockOut.toDate()):'';
     const total=r.clockIn&&r.clockOut?Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000):0;
-    rows.push([r.date,r.shiftName||'',inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total]);
+    rows.push([r.date,r.shiftName||'',inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total,r.clockInIp||'',r.deviceId||'',r.clockInGps?.lat||'',r.clockInGps?.lng||'']);
   });
   dlCSV(rows,`${name}_${m}_근무기록.csv`);
 };
