@@ -891,11 +891,12 @@ window.selectShift = async (shiftName) => {
   $('t-in').textContent='--:--'; $('t-in').classList.add('empty');
   $('t-out').textContent='--:--'; $('t-out').classList.add('empty');
   $('s-in').innerHTML=''; $('s-out').innerHTML='';
-  $('btn-in').className='btn-clock btn-coff'; $('btn-in').textContent='출근';
+  $('btn-in').textContent='출근';
   $('btn-out').className='btn-clock btn-coff'; $('btn-out').textContent='퇴근';
   $('btn-cancel-in').style.display='none';
   $('btn-cancel-out').style.display='none';
   $('total-box').style.display='none';
+  updateBtns(); // ★ 네트워크 상태에 맞춰 출근 버튼 즉시 활성화 (먹통 방지)
   // 교대 선택 표시 유지
   const sw=$('shift-select-wrap'); if(sw) sw.style.display='block';
   // 선택한 교대로 배너 즉시 갱신
@@ -1156,6 +1157,7 @@ async function loadEmpPage() {
   }
   // 설정 로드 + 오늘 기록 순서대로 await
   await loadSettings();
+  if(!settings.mode){ await loadSettings(); } // 일시적 읽기 실패 대비 1회 재시도
   await loadTodayAtt(); // 출근 완료 여부 먼저 확인
   // 3교대 모드 & 출근 완료 전이면 교대 자동감지 후 선택 메뉴 표시
   if(settings.mode==='shift' && !$('btn-in').textContent.includes('완료')){
@@ -1669,7 +1671,8 @@ window.cancelClockOut = async () => {
 window.clockIn = async () => {
   if (!isNetOk) { toast('병원 WiFi에서만 출근 가능합니다','error'); return; }
   const bi=$('btn-in');
-  if (bi.className.includes('cdone')||bi.className.includes('coff')) return;
+  // 이미 출근 완료/처리중이면 무시 (coff는 막지 않음 — 네트워크 체크가 위에서 처리)
+  if (bi.className.includes('cdone') || bi.textContent.includes('완료') || bi.textContent.includes('처리중')) return;
   const now = new Date();
 
   // 3교대 모드 처리
