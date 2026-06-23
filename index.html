@@ -1522,14 +1522,21 @@ async function loadTodayAtt() {
     }
   }
   const snapDocId = `${me.uid}_${checkDate}`;
-  console.log('loadTodayAtt 조회:', snapDocId);
-  let snap = await getDoc(doc(db,'attendance_simple',snapDocId));
-  // 못 찾으면 today()로 재시도
-  if(!snap.exists() && checkDate !== today()){
-    const snap2 = await getDoc(doc(db,'attendance_simple',`${me.uid}_${today()}`));
-    if(snap2.exists()) snap = snap2;
+  let snap;
+  try {
+    snap = await getDoc(doc(db,'attendance_simple',snapDocId));
+    // 못 찾으면 today()로 재시도
+    if(!snap.exists() && checkDate !== today()){
+      const snap2 = await getDoc(doc(db,'attendance_simple',`${me.uid}_${today()}`));
+      if(snap2.exists()) snap = snap2;
+    }
+  } catch(e){
+    // 기록이 없는 신규 직원은 보안 규칙상 존재하지 않는 문서 읽기가 막혀 에러가 날 수 있음
+    // → 기록 없음으로 간주하고 교대 선택란을 정상 표시
+    console.log('출퇴근 기록 조회 건너뜀(기록 없음/권한):', e?.code||e?.message);
+    updateBtns(); refreshShiftWrap(); return;
   }
-  if (!snap.exists()) { updateBtns(); refreshShiftWrap(); return; }
+  if (!snap || !snap.exists()) { updateBtns(); refreshShiftWrap(); return; }
   const d = snap.data();
   if (d.clockIn) {
     const t = d.clockIn.toDate();
