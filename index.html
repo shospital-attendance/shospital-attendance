@@ -156,6 +156,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
 table{width:100%;border-collapse:collapse;font-size:14px;min-width:480px;}
 th{padding:12px 14px;text-align:left;color:var(--gray-500);font-size:12px;font-weight:600;background:var(--gray-50);border-bottom:1px solid var(--gray-200);white-space:nowrap;}
 td{padding:12px 14px;border-bottom:1px solid var(--gray-100);color:var(--gray-800);white-space:nowrap;}
+/* 주별 조회: 요일 칸 폭 균일 + 헤더/본문 가운데 정렬로 일렬 맞춤 */
+.weekly-table{table-layout:fixed;min-width:780px;}
+.weekly-table th,.weekly-table td{text-align:center;padding:8px 2px;white-space:normal;word-break:keep-all;overflow:hidden;}
+.weekly-table th:nth-child(1),.weekly-table td:nth-child(1){width:70px;text-align:left;padding-left:12px;}
+.weekly-table th:nth-child(2),.weekly-table td:nth-child(2){width:60px;text-align:left;}
 tr:last-child td{border-bottom:none;}
 tr:hover td{opacity:0.92;}
 
@@ -538,10 +543,11 @@ tr:hover td{opacity:0.92;}
     <!-- 월별 보고서 -->
     <div class="a-sec" id="sec-monthly">
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
-        <input type="month" id="report-month" style="padding:8px 12px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;" onchange="window.loadMonthly()">
-        <select id="report-dept" style="padding:8px 12px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;" onchange="window.loadMonthly()">
+        <input type="month" id="report-month" style="padding:8px 12px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;" onchange="window.refreshMonthly()">
+        <select id="report-dept" style="padding:8px 12px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;" onchange="window.refreshMonthly()">
           <option value="">전체 부서</option>
         </select>
+        <button class="btn-sm" onclick="window.refreshMonthly()">조회</button>
         <div style="display:flex;gap:6px;margin-left:auto;">
           <button class="btn-sm" id="btn-view-cal" onclick="switchMonthView('cal')" style="color:var(--primary);border-color:var(--primary);">📅 달력</button>
           <button class="btn-sm" id="btn-view-table" onclick="switchMonthView('table')">📋 표</button>
@@ -594,7 +600,7 @@ tr:hover td{opacity:0.92;}
       <!-- 주간 요약 통계 -->
       <div id="weekly-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;"></div>
       <div class="tbl-wrap">
-        <table>
+        <table class="weekly-table">
           <thead id="weekly-thead"></thead>
           <tbody id="weekly-tbody"></tbody>
         </table>
@@ -3040,6 +3046,12 @@ window.testTelegram = async () => {
 
 // ── 월별 달력 뷰 ──
 let calMonthData = {}; // date → [records]
+
+// 현재 보이는 뷰(달력/표)를 다시 그림 — 월/부서 변경 즉시 반영
+window.refreshMonthly = () => {
+  const calVisible = $('monthly-cal-view').style.display !== 'none';
+  if(calVisible) renderCalendar(); else window.loadMonthly();
+};
 
 window.switchMonthView = (mode) => {
   const tbl=$('monthly-table-view'), cal=$('monthly-cal-view');
