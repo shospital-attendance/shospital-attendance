@@ -139,6 +139,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
 .admin-tabs::-webkit-scrollbar{display:none;}
 .a-tab{padding:12px 16px;font-size:13px;font-weight:500;color:var(--gray-400);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;flex-shrink:0;}
 .a-tab.on{color:var(--primary);border-bottom-color:var(--primary);}
+.tab-badge{display:none;min-width:16px;height:16px;line-height:16px;padding:0 4px;margin-left:5px;border-radius:8px;background:var(--danger,#ef4444);color:#fff;font-size:10px;font-weight:700;text-align:center;vertical-align:middle;}
+.tab-badge.show{display:inline-block;}
 .admin-body{padding:14px;}
 .a-sec{display:none;}
 .a-sec.on{display:block;}
@@ -506,9 +508,10 @@ tr:hover td{opacity:0.92;}
     <div class="a-tab" onclick="window.switchTab('daily',this)">일별 조회</div>
     <div class="a-tab" onclick="window.switchTab('weekly',this)">주별 조회</div>
     <div class="a-tab" onclick="window.switchTab('member-report',this)">직원별 조회</div>
-    <div class="a-tab" onclick="window.switchTab('members',this)">직원 관리</div>
-    <div class="a-tab" onclick="window.switchTab('devices',this)">기기 승인</div>
+    <div class="a-tab" onclick="window.switchTab('members',this)">직원 관리<span class="tab-badge" id="badge-members">0</span></div>
+    <div class="a-tab" onclick="window.switchTab('devices',this)">기기 승인<span class="tab-badge" id="badge-devices">0</span></div>
     <div class="a-tab" onclick="window.switchTab('cancel-logs',this)">취소 이력</div>
+    <div class="a-tab" onclick="window.switchTab('edit-logs',this)">수정 이력</div>
     <div class="a-tab" onclick="window.switchTab('settings',this)">설정</div>
   </div>
   <div class="admin-body">
@@ -650,6 +653,15 @@ tr:hover td{opacity:0.92;}
       <div id="cancel-log-list"><div style="text-align:center;color:var(--gray-400);padding:20px;">로딩 중...</div></div>
     </div>
 
+    <!-- 수정 이력 -->
+    <div class="a-sec" id="sec-edit-logs">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div style="font-size:13px;color:var(--gray-500);">관리자의 출퇴근 기록 수정 이력</div>
+        <input type="month" id="edit-month" style="padding:7px 10px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;" onchange="window.loadEditLogs()">
+      </div>
+      <div id="edit-log-list"><div style="text-align:center;color:var(--gray-400);padding:20px;">로딩 중...</div></div>
+    </div>
+
     <!-- 설정 -->
     <div class="a-sec" id="sec-settings">
       <div class="card">
@@ -742,10 +754,12 @@ tr:hover td{opacity:0.92;}
   <div class="modal" onclick="event.stopPropagation()">
     <h3>출퇴근 기록 수정</h3>
     <input type="hidden" id="edit-uid">
-    <input type="hidden" id="edit-date">
+    <input type="hidden" id="edit-orig-date">
     <div style="font-size:13px;color:var(--gray-500);margin-bottom:14px;" id="edit-info"></div>
+    <div class="form-g"><label>날짜</label><input type="date" id="edit-date"></div>
     <div class="form-g"><label>출근 시간</label><input type="time" id="edit-in"></div>
     <div class="form-g"><label>퇴근 시간 (선택)</label><input type="time" id="edit-out"></div>
+    <div class="form-g"><label>수정 사유 (선택)</label><input type="text" id="edit-note" placeholder="예: 기기 오류로 수기 입력"></div>
     <div class="modal-footer">
       <button class="btn btn-gray" onclick="closeModal('modal-edit')">취소</button>
       <button class="btn btn-primary" onclick="saveEdit()">저장</button>
@@ -1519,10 +1533,10 @@ async function loadTodayAtt() {
       // 선택된 교대 기준
       const info = getShiftInfo(selectedShift, now2);
       checkDate = info.shiftDate;
-    } else if(m2<=8*60+30){
-      // 자동: 자정~08:30 → 전날 나이트
-      const y=new Date(); y.setDate(y.getDate()-1);
-      checkDate=`${y.getFullYear()}-${pad(y.getMonth()+1)}-${pad(y.getDate())}`;
+    } else {
+      // 미선택 시에도 보정된 자동감지로 날짜 계산 (새벽 데이가 전날로 빠지지 않게)
+      const auto = detectShift(now2);
+      if(auto) checkDate = getShiftInfo(auto, now2).shiftDate;
     }
   }
   const snapDocId = `${me.uid}_${checkDate}`;
@@ -1686,11 +1700,11 @@ window.clockIn = async () => {
     const shift = selectedShift || detectShift(now);
     if(shift && shift.name !== '오프'){
       const info = getShiftInfo(shift, now);
-      shiftDate  = info.shiftDate;
+      shiftDate  = info.shiftDate;   // 데이/이브닝=오늘, 나이트(새벽)=전날
       shiftName  = shift.name;
       shiftStart = shift.start;
       shiftEnd   = shift.end;
-      isContinuing = !!shift.continuing;
+      isContinuing = info.continuing;
       baseM = isContinuing ? 21*60 : shift.startM;
     }
     // 오프 또는 시간 외 → 그냥 현재 시간으로 기록 (shiftName 오프)
@@ -1864,9 +1878,11 @@ async function loadAdminPage() {
   $('report-month').value = nowMonth();
   $('daily-date').value   = today();
   $('cancel-month').value = nowMonth();
+  $('edit-month').value   = nowMonth();
   await loadSettings2();
   await loadToday();
   await loadDepts();
+  await updateBadges();
   // 월별 보고서 기본값: 달력
   switchMonthView('cal');
   await loadMemberSelectList();
@@ -1888,8 +1904,10 @@ window.switchTab = (tab, el) => {
   if(tab==='devices') loadDevices();
   if(tab==='settings')loadSettings2();
   if(tab==='cancel-logs'){ window.loadCancelLogs(); }
+  if(tab==='edit-logs'){ window.loadEditLogs(); }
   if(tab==='weekly'){ loadWeekly(); loadDepts2('weekly-dept'); }
   if(tab==='member-report'){ loadMemberSelectList(); loadMemberReport(); }
+  updateBadges();
 };
 
 // 오늘 현황
@@ -2137,12 +2155,12 @@ window.approveMember = async (uid) => {
   }
   await updateDoc(doc(db,'users_simple',uid),{status:'approved',dept:dept||'',role});
   toast(role==='admin'?'관리자로 승인됐습니다':'승인됐습니다','success');
-  await loadMembers();
+  await loadMembers(); await updateBadges();
 };
 window.rejectMember = async (uid) => {
   if(!confirm('가입을 거부하고 삭제할까요?')) return;
   await deleteDoc(doc(db,'users_simple',uid));
-  toast('처리됐습니다'); await loadMembers();
+  toast('처리됐습니다'); await loadMembers(); await updateBadges();
 };
 window.deleteMember = async (uid, name) => {
   if(!confirm(`"${name}" 직원을 삭제할까요?\n출퇴근 기록은 유지됩니다.`)) return;
@@ -2214,35 +2232,65 @@ window.approveDevice = async (uid) => {
   const newId=snap.data().pendingDeviceId;
   if(!newId){ toast('기기 ID가 없습니다','error'); return; }
   await updateDoc(doc(db,'users_simple',uid),{deviceId:newId,devicePending:false,pendingDeviceId:''});
-  toast('기기 변경 승인됐습니다','success'); await loadDevices();
+  toast('기기 변경 승인됐습니다','success'); await loadDevices(); await updateBadges();
 };
 window.rejectDevice = async (uid) => {
   await updateDoc(doc(db,'users_simple',uid),{devicePending:false,pendingDeviceId:''});
-  toast('기기 변경 거절됐습니다'); await loadDevices();
+  toast('기기 변경 거절됐습니다'); await loadDevices(); await updateBadges();
 };
 
 // 출퇴근 수정
 window.deleteAtt = async (uid, name, date) => {
   if(!confirm(`${name} (${date}) 출퇴근 기록을 삭제할까요?\n삭제하면 해당 직원이 다시 출퇴근을 기록할 수 있습니다.`)) return;
   try {
-    await deleteDoc(doc(db,'attendance_simple',`${uid}_${date}`));
-    toast(`${name} ${date} 기록 삭제됐습니다`,'success');
+    const ref=doc(db,'attendance_simple',`${uid}_${date}`);
+    const before=await getDoc(ref);
+    const b=before.exists()?before.data():null;
+    await deleteDoc(ref);
+    // 삭제 이력 로그
+    await addDoc(collection(db,'edit_logs'),{
+      targetUid: uid, targetName: name, dept: b?.dept||'',
+      origDate: date, newDate: date, dateChanged:false, isNew:false, isDelete:true,
+      beforeIn:  b?.clockIn  ? fmt(b.clockIn.toDate())  : '—',
+      beforeOut: b?.clockOut ? fmt(b.clockOut.toDate()) : '—',
+      afterIn:'(삭제됨)', afterOut:'(삭제됨)', note:'기록 삭제',
+      editorUid: me.uid, editorName: meData?.name||me.displayName||'',
+      editorEmail: me.email||'', editorRole: meData?.role||'',
+      editedAt: serverTimestamp()
+    });
+    toast(`${name} ${date} 기록 삭제됐습니다 (이력 기록됨)`,'success');
     await loadToday();
     await loadDaily();
   } catch(e){ toast('오류: '+e.message,'error'); }
 };
 
 window.openEdit = (uid, name, date, inT, outT) => {
-  $('edit-uid').value=uid; $('edit-date').value=date;
-  $('edit-info').textContent=`${name} / ${date}`;
+  $('edit-uid').value=uid;
+  $('edit-orig-date').value=date;
+  $('edit-date').value=date;
+  $('edit-info').textContent=`${name} / 원본 날짜 ${date}`;
   $('edit-in').value  = inT==='—'?'':inT;
   $('edit-out').value = outT==='—'?'':outT;
+  $('edit-note').value='';
   $('modal-edit').classList.add('open');
 };
 window.saveEdit = async () => {
-  const uid=$('edit-uid').value, date=$('edit-date').value;
+  const uid=$('edit-uid').value;
+  const origDate=$('edit-orig-date').value;
+  const date=$('edit-date').value;
   const inT=$('edit-in').value, outT=$('edit-out').value;
+  const note=$('edit-note').value.trim();
+  if(!date){ toast('날짜를 입력하세요','error'); return; }
   if(!inT){ toast('출근 시간을 입력하세요','error'); return; }
+
+  // ── 수정 전 원본 기록 읽기 (로그용) ──
+  const origRef=doc(db,'attendance_simple',`${uid}_${origDate}`);
+  const origSnap=await getDoc(origRef);
+  const before = origSnap.exists() ? origSnap.data() : null;
+  const beforeIn  = before?.clockIn  ? fmt(before.clockIn.toDate())  : '—';
+  const beforeOut = before?.clockOut ? fmt(before.clockOut.toDate()) : '—';
+
+  // ── 새 값 계산 ──
   const inDate=new Date(`${date}T${inT}:00`);
   const clockIn=Timestamp.fromDate(inDate);
   let clockOut=null, otMin=0, earlyMin=0;
@@ -2260,12 +2308,40 @@ window.saveEdit = async () => {
   const uSnap=await getDoc(doc(db,'users_simple',uid));
   const u=uSnap.exists()?uSnap.data():{name:'',dept:''};
   const data={uid,name:u.name||'',dept:u.dept||'',date,clockIn,lateMin,earlyMin,otMin};
+  if(before?.shiftName) data.shiftName=before.shiftName;
   if(clockOut) data.clockOut=clockOut;
-  const ref=doc(db,'attendance_simple',`${uid}_${date}`);
-  const existing=await getDoc(ref);
-  if(existing.exists()) await updateDoc(ref,data); else await setDoc(ref,data);
-  closeModal('modal-edit'); toast('수정됐습니다','success');
-  await loadToday(); await loadDaily();
+
+  try {
+    // 날짜가 바뀌면 문서 ID도 바뀌므로 기존 문서 삭제 후 새 문서 생성
+    if(date !== origDate && origSnap.exists()){
+      await deleteDoc(origRef);
+    }
+    const newRef=doc(db,'attendance_simple',`${uid}_${date}`);
+    const existing=await getDoc(newRef);
+    if(existing.exists()) await updateDoc(newRef,data); else await setDoc(newRef,data);
+
+    // ── 수정 이력 로그 ──
+    await addDoc(collection(db,'edit_logs'),{
+      targetUid: uid,
+      targetName: u.name||'',
+      dept: u.dept||'',
+      origDate, newDate: date,
+      dateChanged: date !== origDate,
+      isNew: !origSnap.exists(),
+      beforeIn, beforeOut,
+      afterIn: fmt(inDate),
+      afterOut: outT ? fmt(new Date(`${date}T${outT}:00`)) : '—',
+      note,
+      editorUid: me.uid,
+      editorName: meData?.name || me.displayName || '',
+      editorEmail: me.email || '',
+      editorRole: meData?.role || '',
+      editedAt: serverTimestamp()
+    });
+
+    closeModal('modal-edit'); toast('수정됐습니다 (이력 기록됨)','success');
+    await loadToday(); await loadDaily();
+  } catch(e){ toast('오류: '+e.message,'error'); }
 };
 
 // 직원 수정
@@ -2466,8 +2542,9 @@ const SHIFTS = [
 function detectShift(now) {
   const h = now.getHours(), mn = now.getMinutes();
   const totalM = h*60 + mn;
-  // 자정~08:30 → 나이트 연장 (전날 나이트가 이어짐)
-  if(totalM <= 8*60+30) return { ...SHIFTS[2], continuing:true };
+  // 00:00~04:59 → 확실한 전날 나이트 연장 (데이 출근 시간대 아님)
+  if(totalM < 5*60) return { ...SHIFTS[2], continuing:true };
+  // 05:00~08:30 은 데이 출근 / 나이트 퇴근이 겹침 → 출근 맥락이므로 데이 우선
   for(const s of SHIFTS){
     const [ws, we] = s.window;
     if(totalM >= ws && totalM <= we) return s;
@@ -2478,18 +2555,19 @@ function detectShift(now) {
 function getShiftInfo(shift, now) {
   // 출근 날짜 / 퇴근 날짜 계산 (로컬 날짜 사용 - UTC 오차 방지)
   const localDate = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const nowM = now.getHours()*60+now.getMinutes();
   let shiftDate = localDate(now);
-  if(shift.continuing) {
-    // 자정 넘어서 출근한 나이트 → 전날 날짜로 기록
+  let baseM = shift.startM;
+  let continuing = false;
+  // ★ 나이트만 자정~08:30 출근 시 전날로 귀속. 데이/이브닝은 항상 오늘.
+  if(shift.name === '나이트' && nowM <= 8*60+30){
     const yesterday = new Date(now); yesterday.setDate(yesterday.getDate()-1);
     shiftDate = localDate(yesterday);
+    baseM = 21*60; // 나이트 21:00 기준 (전날)
+    continuing = true;
   }
-  // 지각 계산
-  const nowM = now.getHours()*60+now.getMinutes();
-  let baseM = shift.startM;
-  if(shift.continuing) baseM = 21*60; // 나이트 21:00 기준 (전날)
-  const lateMin = !shift.continuing && nowM > baseM+(parseInt(settings.lateMin)||5) ? nowM-baseM : 0;
-  return { shiftDate, lateMin };
+  const lateMin = !continuing && nowM > baseM+(parseInt(settings.lateMin)||5) ? nowM-baseM : 0;
+  return { shiftDate, lateMin, continuing };
 }
 
 // ── 직원 본인 과거 기록 ──
@@ -2827,6 +2905,107 @@ window.deleteCancelLog = async (id) => {
     toast('취소 이력이 삭제됐습니다','success');
     loadCancelLogs();
   } catch(e){ toast('오류: '+e.message,'error'); }
+};
+
+// ── 수정 이력 (출퇴근 기록 수정 로그) ──
+window.loadEditLogs = async () => {
+  const m = $('edit-month').value || nowMonth();
+  if(!$('edit-month').value) $('edit-month').value = m;
+  const [y,mo] = m.split('-');
+  try {
+    // 원본 날짜 기준으로 월 필터 (origDate)
+    const snap = await getDocs(query(
+      collection(db,'edit_logs'),
+      where('origDate','>=',`${y}-${mo}-01`),
+      where('origDate','<=',`${y}-${mo}-31`)
+    ));
+    if(snap.empty){
+      $('edit-log-list').innerHTML='<div style="text-align:center;color:var(--gray-400);padding:24px;">수정 이력이 없습니다</div>';
+      return;
+    }
+    const docs=[]; snap.forEach(d=>docs.push({id:d.id,...d.data()}));
+    docs.sort((a,b)=>{
+      const at=a.editedAt?.toDate?.()?.getTime()||0;
+      const bt=b.editedAt?.toDate?.()?.getTime()||0;
+      return bt-at;
+    });
+    const isSuper = meData?.role==='superadmin';
+    let html='';
+    docs.forEach(r=>{
+      const t=r.editedAt?.toDate();
+      const whenStr = t ? `${`${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}`} ${fmt(t)}` : '';
+      const isDel = r.isDelete;
+      const isNew = r.isNew;
+      const accent = isDel ? 'var(--danger)' : isNew ? 'var(--success)' : 'var(--primary)';
+      const accentBg = isDel ? 'var(--danger-light)' : isNew ? 'var(--success-light,#dcfce7)' : 'var(--primary-light,#e0e7ff)';
+      const typeLabel = isDel ? '삭제' : isNew ? '신규입력' : '수정';
+      const dateLine = r.dateChanged
+        ? `<span style="color:var(--danger);font-weight:700;">${r.origDate} → ${r.newDate}</span>`
+        : `${r.origDate}`;
+      html+=`<div style="background:#fff;border-radius:12px;padding:14px 16px;margin-bottom:8px;box-shadow:var(--shadow);border-left:3px solid ${accent};">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div>
+            <span style="font-size:14px;font-weight:700;color:var(--gray-900);">${r.targetName||''}</span>
+            <span style="font-size:12px;color:var(--gray-400);margin-left:6px;">${r.dept||''}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:8px;background:${accentBg};color:${accent};">${typeLabel}</span>
+            ${isSuper?`<button onclick="deleteEditLog('${r.id}')" title="이 수정 이력 삭제" style="padding:3px 8px;border:1px solid var(--gray-200);border-radius:8px;background:#fff;color:var(--gray-400);font-size:11px;font-weight:600;cursor:pointer;">🗑 삭제</button>`:''}
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--gray-500);margin-bottom:8px;">📅 대상 날짜: ${dateLine}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin-bottom:8px;">
+          <div style="background:var(--gray-50);border-radius:8px;padding:8px;">
+            <div style="color:var(--gray-400);margin-bottom:2px;">변경 전</div>
+            <div style="font-weight:600;color:var(--gray-700);">출근 ${r.beforeIn} / 퇴근 ${r.beforeOut}</div>
+          </div>
+          <div style="background:var(--gray-50);border-radius:8px;padding:8px;">
+            <div style="color:var(--gray-400);margin-bottom:2px;">변경 후</div>
+            <div style="font-weight:600;color:${accent};">출근 ${r.afterIn} / 퇴근 ${r.afterOut}</div>
+          </div>
+        </div>
+        ${r.note?`<div style="font-size:11px;color:var(--gray-500);margin-bottom:6px;">📝 ${r.note}</div>`:''}
+        <div style="font-size:11px;color:var(--gray-400);border-top:1px solid var(--gray-100);padding-top:6px;">
+          ✏️ 수정자: <b style="color:var(--gray-600);">${r.editorName||r.editorEmail||'?'}</b>${r.editorRole==='superadmin'?' 👑':r.editorRole==='admin'?' ⭐':''}
+          <span style="margin-left:6px;">${whenStr}</span>
+        </div>
+      </div>`;
+    });
+    $('edit-log-list').innerHTML=html;
+  } catch(e){
+    $('edit-log-list').innerHTML=`<div style="text-align:center;color:var(--danger);padding:20px;">오류: ${e.message}</div>`;
+  }
+};
+
+// ── 수정 이력 삭제 (슈퍼관리자 전용) ──
+window.deleteEditLog = async (id) => {
+  if(meData?.role!=='superadmin'){ toast('슈퍼관리자만 삭제할 수 있습니다','error'); return; }
+  if(!confirm('⚠️ 이 수정 이력을 삭제하시겠습니까?\n\n삭제하면 복구할 수 없습니다.')) return;
+  try {
+    await deleteDoc(doc(db,'edit_logs',id));
+    toast('수정 이력이 삭제됐습니다','success');
+    loadEditLogs();
+  } catch(e){ toast('오류: '+e.message,'error'); }
+};
+
+// ── 메뉴 승인 대기 배지 갱신 ──
+window.updateBadges = async () => {
+  try {
+    const snap = await getDocs(collection(db,'users_simple'));
+    let pendingMembers=0, pendingDevices=0;
+    snap.forEach(d=>{
+      const u=d.data();
+      if(u.status==='pending') pendingMembers++;
+      if(u.devicePending) pendingDevices++;
+    });
+    const setBadge=(id,n)=>{
+      const el=$(id); if(!el) return;
+      el.textContent=n>99?'99+':n;
+      el.classList.toggle('show', n>0);
+    };
+    setBadge('badge-members', pendingMembers);
+    setBadge('badge-devices', pendingDevices);
+  } catch(e){ /* 무시 */ }
 };
 
 // 텔레그램 테스트
