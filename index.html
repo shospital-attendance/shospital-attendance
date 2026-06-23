@@ -757,6 +757,15 @@ tr:hover td{opacity:0.92;}
     <input type="hidden" id="edit-orig-date">
     <div style="font-size:13px;color:var(--gray-500);margin-bottom:14px;" id="edit-info"></div>
     <div class="form-g"><label>날짜</label><input type="date" id="edit-date"></div>
+    <div class="form-g"><label>교대</label>
+      <select id="edit-shift">
+        <option value="">일반 / 미지정</option>
+        <option value="데이">데이 (07:00~15:00)</option>
+        <option value="이브닝">이브닝 (14:00~22:00)</option>
+        <option value="나이트">나이트 (21:00~08:00)</option>
+        <option value="오프">오프</option>
+      </select>
+    </div>
     <div class="form-g"><label>출근 시간</label><input type="time" id="edit-in"></div>
     <div class="form-g"><label>퇴근 시간 (선택)</label><input type="time" id="edit-out"></div>
     <div class="form-g"><label>수정 사유 (선택)</label><input type="text" id="edit-note" placeholder="예: 기기 오류로 수기 입력"></div>
@@ -1979,7 +1988,7 @@ window.loadToday = async () => {
         <td>${status}</td>
         <td style="font-weight:600;color:${totalColor};">${totalStr}</td>
         <td style="display:flex;gap:4px;">
-          <button class="btn-sm" onclick="openEdit('${u.id}','${u.name}','${td}','${inT}','${outT}')">수정</button>
+          <button class="btn-sm" onclick="openEdit('${u.id}','${u.name}','${td}','${inT}','${outT}','${a?.shiftName||''}')">수정</button>
           ${a?`<button class="btn-reject" onclick="deleteAtt('${u.id}','${u.name}','${td}')">삭제</button>`:''}
         </td>
       </tr>`;
@@ -2037,7 +2046,7 @@ window.loadDaily = async () => {
       <td style="font-size:10px;">${a?.clockInIp||'—'}</td>
       <td>${gps2}</td>
       <td style="display:flex;gap:4px;">
-        <button class="btn-sm" onclick="openEdit('${u.id}','${u.name}','${d}','${inT}','${outT}')">수정</button>
+        <button class="btn-sm" onclick="openEdit('${u.id}','${u.name}','${d}','${inT}','${outT}','${a?.shiftName||''}')">수정</button>
         ${a?`<button class="btn-reject" onclick="deleteAtt('${u.id}','${u.name}','${d}')">삭제</button>`:''}
       </td></tr>`;
   });
@@ -2264,10 +2273,11 @@ window.deleteAtt = async (uid, name, date) => {
   } catch(e){ toast('오류: '+e.message,'error'); }
 };
 
-window.openEdit = (uid, name, date, inT, outT) => {
+window.openEdit = (uid, name, date, inT, outT, shiftName) => {
   $('edit-uid').value=uid;
   $('edit-orig-date').value=date;
   $('edit-date').value=date;
+  $('edit-shift').value = (shiftName==='—'?'':(shiftName||''));
   $('edit-info').textContent=`${name} / 원본 날짜 ${date}`;
   $('edit-in').value  = inT==='—'?'':inT;
   $('edit-out').value = outT==='—'?'':outT;
@@ -2279,6 +2289,7 @@ window.saveEdit = async () => {
   const origDate=$('edit-orig-date').value;
   const date=$('edit-date').value;
   const inT=$('edit-in').value, outT=$('edit-out').value;
+  const shiftName=$('edit-shift').value;   // '', '데이', '이브닝', '나이트', '오프'
   const note=$('edit-note').value.trim();
   if(!date){ toast('날짜를 입력하세요','error'); return; }
   if(!inT){ toast('출근 시간을 입력하세요','error'); return; }
@@ -2289,6 +2300,16 @@ window.saveEdit = async () => {
   const before = origSnap.exists() ? origSnap.data() : null;
   const beforeIn  = before?.clockIn  ? fmt(before.clockIn.toDate())  : '—';
   const beforeOut = before?.clockOut ? fmt(before.clockOut.toDate()) : '—';
+  const beforeShift = before?.shiftName || '—';
+
+  // ── 교대별 기준 출퇴근 시각 (지각/조퇴/연장 계산용) ──
+  const SHIFT_REF = {
+    '데이':   { in:'07:00', out:'15:00' },
+    '이브닝': { in:'14:00', out:'22:00' },
+    '나이트': { in:'21:00', out:'08:00' },
+  };
+  const isNight = shiftName==='나이트';
+  const ref = SHIFT_REF[shiftName] || { in: settings.defaultIn||'09:00', out: settings.defaultOut||'18:00' };
 
   // ── 새 값 계산 ──
   const inDate=new Date(`${date}T${inT}:00`);
@@ -2296,19 +2317,26 @@ window.saveEdit = async () => {
   let clockOut=null, otMin=0, earlyMin=0;
   if(outT){
     clockOut=Timestamp.fromDate(new Date(`${date}T${outT}:00`));
-    const outRef=settings.defaultOut||'18:00';
-    const [eh,em]=outRef.split(':').map(Number); const endM=eh*60+em;
-    const outMins=parseInt(outT.split(':')[0])*60+parseInt(outT.split(':')[1]);
-    if(outMins<endM-5) earlyMin=endM-outMins; else if(outMins>endM+5) otMin=outMins-endM;
+    // 나이트는 자정 넘겨 퇴근하므로 조퇴/연장 자동계산에서 제외 (현장 로직과 동일)
+    if(!isNight){
+      const [eh,em]=ref.out.split(':').map(Number); const endM=eh*60+em;
+      const outMins=parseInt(outT.split(':')[0])*60+parseInt(outT.split(':')[1]);
+      if(outMins<endM-5) earlyMin=endM-outMins; else if(outMins>endM+5) otMin=outMins-endM;
+    }
   }
-  const inRef=settings.defaultIn||'09:00';
-  const [sh,sm]=inRef.split(':').map(Number);
-  const inMins=parseInt(inT.split(':')[0])*60+parseInt(inT.split(':')[1]);
-  const lateMin=inMins>sh*60+sm+(parseInt(settings.lateMin)||5)?inMins-(sh*60+sm):0;
+  let lateMin=0;
+  if(!isNight){
+    const [sh,sm]=ref.in.split(':').map(Number);
+    const inMins=parseInt(inT.split(':')[0])*60+parseInt(inT.split(':')[1]);
+    const refInM=sh*60+sm;
+    lateMin = inMins > refInM+(parseInt(settings.lateMin)||5) ? inMins-refInM : 0;
+  }
   const uSnap=await getDoc(doc(db,'users_simple',uid));
   const u=uSnap.exists()?uSnap.data():{name:'',dept:''};
   const data={uid,name:u.name||'',dept:u.dept||'',date,clockIn,lateMin,earlyMin,otMin};
-  if(before?.shiftName) data.shiftName=before.shiftName;
+  // 교대 반영: 선택값이 있으면 그 값, 없으면 기존 값 유지
+  data.shiftName = shiftName || before?.shiftName || '';
+  if(SHIFT_REF[shiftName]){ data.shiftIn=ref.in; data.shiftOut=ref.out; }
   if(clockOut) data.clockOut=clockOut;
 
   try {
@@ -2328,9 +2356,11 @@ window.saveEdit = async () => {
       origDate, newDate: date,
       dateChanged: date !== origDate,
       isNew: !origSnap.exists(),
-      beforeIn, beforeOut,
+      beforeIn, beforeOut, beforeShift,
       afterIn: fmt(inDate),
       afterOut: outT ? fmt(new Date(`${date}T${outT}:00`)) : '—',
+      afterShift: data.shiftName || '—',
+      shiftChanged: (data.shiftName||'') !== (before?.shiftName||''),
       note,
       editorUid: me.uid,
       editorName: meData?.name || me.displayName || '',
@@ -2954,6 +2984,7 @@ window.loadEditLogs = async () => {
           </div>
         </div>
         <div style="font-size:12px;color:var(--gray-500);margin-bottom:8px;">📅 대상 날짜: ${dateLine}</div>
+        ${(r.afterShift && r.afterShift!=='—') || (r.beforeShift && r.beforeShift!=='—') ? `<div style="font-size:12px;color:var(--gray-500);margin-bottom:8px;">🔁 교대: ${r.shiftChanged?`<span style="color:var(--danger);font-weight:700;">${r.beforeShift||'—'} → ${r.afterShift||'—'}</span>`:`${r.afterShift||r.beforeShift||'—'}`}</div>` : ''}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin-bottom:8px;">
           <div style="background:var(--gray-50);border-radius:8px;padding:8px;">
             <div style="color:var(--gray-400);margin-bottom:2px;">변경 전</div>
