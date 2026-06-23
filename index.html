@@ -1495,6 +1495,17 @@ async function checkNetwork() {
 
 // ── 보안 정보 로드 (IP는 checkNetwork에서 처리, 기기ID + GPS만) ──
 let myGps = null;
+// 클릭 시점에 즉시 위치를 한 번 더 시도 (백그라운드 측정이 아직 안 끝났을 때 대비)
+function getGpsNow(timeout=8000){
+  return new Promise(resolve=>{
+    if(!navigator.geolocation){ resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({ lat:pos.coords.latitude, lng:pos.coords.longitude, acc:Math.round(pos.coords.accuracy) }),
+      ()  => resolve(null),
+      { enableHighAccuracy:true, timeout, maximumAge:60000 }
+    );
+  });
+}
 async function loadSecurityInfo() {
   // 기기 ID
   const did = getDeviceId();
@@ -1731,6 +1742,9 @@ window.clockIn = async () => {
     // 현재 IP 가져오기
     let clockInIp='';
     try { const r2=await fetch('https://api.ipify.org?format=json',{cache:'no-store'}); const d2=await r2.json(); clockInIp=d2.ip||''; } catch(e){}
+    // GPS: 백그라운드 측정이 아직 안 끝났으면 지금 한 번 더 시도
+    let gpsToSave = myGps;
+    if(!gpsToSave){ gpsToSave = await getGpsNow(8000); if(gpsToSave) myGps = gpsToSave; }
     const docId = `${me.uid}_${shiftDate}`;
     const ref = doc(db,'attendance_simple',docId);
     await setDoc(ref, {
@@ -1740,7 +1754,7 @@ window.clockIn = async () => {
       shiftName, shiftIn:shiftStart, shiftOut:shiftEnd,
       deviceId:getDeviceId(),
       clockInIp,
-      clockInGps:myGps||null
+      clockInGps:gpsToSave||null
     });
     // 서버가 기록한 실제 시각을 다시 읽어 표시·지각 계산 (항상 한국시간 기준)
     const inSnap = await getDoc(ref);
@@ -2338,6 +2352,14 @@ window.saveEdit = async () => {
   data.shiftName = shiftName || before?.shiftName || '';
   if(SHIFT_REF[shiftName]){ data.shiftIn=ref.in; data.shiftOut=ref.out; }
   if(clockOut) data.clockOut=clockOut;
+  // ★ 보안 메타데이터(IP·기기·GPS)는 수정으로 사라지지 않게 기존 값 보존
+  if(before){
+    if(before.clockInIp   != null) data.clockInIp   = before.clockInIp;
+    if(before.deviceId    != null) data.deviceId    = before.deviceId;
+    if(before.clockInGps  != null) data.clockInGps  = before.clockInGps;
+    if(before.shiftIn     != null && !data.shiftIn)  data.shiftIn  = before.shiftIn;
+    if(before.shiftOut    != null && !data.shiftOut) data.shiftOut = before.shiftOut;
+  }
 
   try {
     // 날짜가 바뀌면 문서 ID도 바뀌므로 기존 문서 삭제 후 새 문서 생성
