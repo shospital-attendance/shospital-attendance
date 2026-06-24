@@ -595,6 +595,7 @@ tr:hover td{opacity:0.92;}
         <select id="weekly-dept" style="padding:8px 12px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;" onchange="window.loadWeekly()">
           <option value="">전체 부서</option>
         </select>
+        <button class="btn-sm" onclick="window.loadWeekly()">🔄 새로고침</button>
         <button onclick="window.exportWeeklyCSV()" style="padding:7px 14px;background:var(--success);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">📊 엑셀</button>
       </div>
       <!-- 주간 요약 통계 -->
@@ -875,6 +876,18 @@ async function syncServerTime(){
 }
 // 서버 보정된 현재 시각
 const serverNow = () => new Date(Date.now() + serverOffset);
+// 주어진 날짜가 속한 주(일~토)의 KST 날짜 문자열 7개 — 보는 사람 시간대와 무관하게 기록(KST)과 일치
+function kstWeekDates(baseDate){
+  const baseStr = kstYMD(baseDate);
+  const [y,m,d] = baseStr.split('-').map(Number);
+  const wd = new Date(Date.UTC(y,m-1,d,12)).getUTCDay(); // 0=일요일
+  const out=[];
+  for(let i=0;i<7;i++){
+    const t=new Date(Date.UTC(y,m-1,d,12)); t.setUTCDate(t.getUTCDate()-wd+i);
+    out.push(`${t.getUTCFullYear()}-${pad(t.getUTCMonth()+1)}-${pad(t.getUTCDate())}`);
+  }
+  return out;
+}
 // 모든 시:분 표시는 한국시간 기준
 const fmt   = d => kstHM(d);
 const $     = id => document.getElementById(id);
@@ -2687,10 +2700,9 @@ function getWeekSunday(date) {
 }
 
 function updateWeekLabel() {
-  const sun = getWeekSunday(weekBaseDate);
-  const sat = new Date(sun); sat.setDate(sun.getDate()+6);
-  const fmt2 = d => `${d.getMonth()+1}/${d.getDate()}`;
-  $('weekly-label').textContent = `${sun.getFullYear()}년 ${fmt2(sun)} (일) ~ ${fmt2(sat)} (토)`;
+  const wd = kstWeekDates(weekBaseDate);
+  const fmt2 = s => { const [y,m,d]=s.split('-'); return `${Number(m)}/${Number(d)}`; };
+  $('weekly-label').textContent = `${wd[0].split('-')[0]}년 ${fmt2(wd[0])} (일) ~ ${fmt2(wd[6])} (토)`;
 }
 
 window.changeWeek = (delta) => {
@@ -2700,12 +2712,7 @@ window.changeWeek = (delta) => {
 };
 
 window.loadWeekly = async () => {
-  const sun = getWeekSunday(weekBaseDate);
-  const dates=[];
-  for(let i=0;i<7;i++){
-    const d=new Date(sun); d.setDate(sun.getDate()+i);
-    dates.push(ymd(d));
-  }
+  const dates = kstWeekDates(weekBaseDate);
   const startDate=dates[0], endDate=dates[6];
   const deptF=$('weekly-dept').value;
   const [uSnap,aSnap]=await Promise.all([
@@ -2730,7 +2737,7 @@ window.loadWeekly = async () => {
   // 헤더 (이름 | 월 화 수 목 금 토 일 | 합계)
   const dayNames=['일','월','화','수','목','금','토'];
   let thead=`<tr><th>이름</th><th>부서</th>`;
-  dates.forEach((dt,i)=>{ const d=new Date(dt+'T00:00:00'); thead+=`<th style="${i===0?'color:var(--danger)':i===6?'color:#3b82f6':''}">${d.getDate()}<br>${dayNames[i]}</th>`; });
+  dates.forEach((dt,i)=>{ const dnum=Number(dt.split('-')[2]); thead+=`<th style="${i===0?'color:var(--danger)':i===6?'color:#3b82f6':''}">${dnum}<br>${dayNames[i]}</th>`; });
   thead+=`<th>근무일</th><th>지각</th><th>총근무</th></tr>`;
   $('weekly-thead').innerHTML=thead;
 
@@ -2753,12 +2760,7 @@ window.loadWeekly = async () => {
 };
 
 window.exportWeeklyCSV = async () => {
-  const sun2 = getWeekSunday(weekBaseDate);
-  const dates=[];
-  for(let i=0;i<7;i++){
-    const d=new Date(sun2); d.setDate(sun2.getDate()+i);
-    dates.push(`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`);
-  }
+  const dates = kstWeekDates(weekBaseDate);
   const snap=await getDocs(query(collection(db,'attendance_simple'),where('date','>=',dates[0]),where('date','<=',dates[6])));
   const rows=[['이름','부서','날짜','교대','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)','IP','기기ID']];
   snap.forEach(d=>{ const r=d.data();
@@ -2767,10 +2769,7 @@ window.exportWeeklyCSV = async () => {
     const total=r.clockIn&&r.clockOut?Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000):0;
     rows.push([r.name,r.dept||'',r.date,r.shiftName||'',inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total,r.clockInIp||'',r.deviceId||'']);
   });
-  const sun2Label = `${sun2.getFullYear()}-${pad(sun2.getMonth()+1)}-${pad(sun2.getDate())}`;
-  const sat2 = new Date(sun2); sat2.setDate(sun2.getDate()+6);
-  const sat2Label = `${sat2.getFullYear()}-${pad(sat2.getMonth()+1)}-${pad(sat2.getDate())}`;
-  dlCSV(rows,`주별근태_${sun2Label}~${sat2Label}.csv`);
+  dlCSV(rows,`주별근태_${dates[0]}~${dates[6]}.csv`);
 };
 
 // ── 직원별 조회 ──
