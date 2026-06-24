@@ -833,6 +833,8 @@ const DAYS = ['일','월','화','수','목','금','토'];
 // ── 유틸 ──
 const pad   = n => String(n).padStart(2,'0');
 const today = () => { const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+// 로컬 기준 YYYY-MM-DD (toISOString은 UTC라 KST 자정이 전날로 밀리는 문제 방지)
+const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 // ── 한국시간(KST, Asia/Seoul) 헬퍼: 기기 시간대와 무관하게 항상 한국시간 ──
 const _kstFmt = new Intl.DateTimeFormat('en-GB',{ timeZone:'Asia/Seoul', hour:'2-digit', minute:'2-digit', hourCycle:'h23' });
 const kstHM = d => {
@@ -841,6 +843,38 @@ const kstHM = d => {
   return `${h}:${m}`;
 };
 const kstMinutes = d => { const [h,m]=kstHM(d).split(':').map(Number); return h*60+m; };
+// 한국시간 기준 날짜 'YYYY-MM-DD' (기기 시간대 무관)
+const _kstDateFmt = new Intl.DateTimeFormat('en-CA',{ timeZone:'Asia/Seoul', year:'numeric', month:'2-digit', day:'2-digit' });
+const kstYMD = d => {
+  let y='',mo='',da='';
+  for(const x of _kstDateFmt.formatToParts(d)){ if(x.type==='year')y=x.value; if(x.type==='month')mo=x.value; if(x.type==='day')da=x.value; }
+  return `${y}-${mo}-${da}`;
+};
+// 'YYYY-MM-DD'에서 하루 전 (KST는 DST 없음 → UTC 정오 기준 안전 계산)
+const prevYMD = (ymdStr) => {
+  const [y,m,d]=ymdStr.split('-').map(Number);
+  const t=new Date(Date.UTC(y,m-1,d,12,0,0)); t.setUTCDate(t.getUTCDate()-1);
+  return `${t.getUTCFullYear()}-${pad(t.getUTCMonth()+1)}-${pad(t.getUTCDate())}`;
+};
+// ── 서버 시간 동기화: 기기 시계를 못 믿으므로 서버(Firestore) 시각 기준 오프셋 사용 ──
+let serverOffset = 0; // ms (서버시각 - 기기시각)
+async function syncServerTime(){
+  try{
+    if(!me?.uid) return;
+    const ref = doc(db,'users_simple', me.uid);
+    const t0 = Date.now();
+    await updateDoc(ref, { _ts: serverTimestamp() });
+    const snap = await getDoc(ref);
+    const st = snap.data()?._ts?.toDate();
+    if(st){
+      // 왕복 지연의 절반을 보정
+      const rtt = Date.now() - t0;
+      serverOffset = st.getTime() - (t0 + rtt/2);
+    }
+  }catch(e){ /* 실패 시 기기시간 유지(best effort) */ }
+}
+// 서버 보정된 현재 시각
+const serverNow = () => new Date(Date.now() + serverOffset);
 // 모든 시:분 표시는 한국시간 기준
 const fmt   = d => kstHM(d);
 const $     = id => document.getElementById(id);
@@ -1164,6 +1198,7 @@ async function loadEmpPage() {
   // 설정 로드 + 오늘 기록 순서대로 await
   await loadSettings();
   if(!settings.mode){ await loadSettings(); } // 일시적 읽기 실패 대비 1회 재시도
+  await syncServerTime(); // 서버 시간 동기화 (이후 날짜·교대 판정 기준)
   await loadTodayAtt(); // 출근 완료 여부 먼저 확인
   // 3교대 모드 & 출근 완료 전이면 교대 자동감지 후 선택 메뉴 표시
   if(settings.mode==='shift' && !$('btn-in').textContent.includes('완료')){
@@ -1376,9 +1411,9 @@ window.addEventListener('appinstalled', () => {
 
 async function autoDetectAndSelectShift() {
   if(settings.mode !== 'shift') return;
-  const now = new Date();
-  const m = now.getHours()*60 + now.getMinutes();
-  const hhmm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const now = serverNow();
+  const m = kstMinutes(now);
+  const hhmm = kstHM(now);
 
   // 교대 시작 1시간 전부터 해당 교대 자동선택
   // 데이:   06:00(360) ~ 13:59(839)
@@ -1433,7 +1468,7 @@ function updateShiftBanner() {
   banner.style.background = '';
   banner.style.color = '';
   // 사용자가 직접 고른 교대가 있으면 그걸 우선 표시, 없으면 현재 시각 기준 자동감지
-  const shift = selectedShift || detectShift(new Date());
+  const shift = selectedShift || detectShift(serverNow());
   if(shift && shift.name === '오프'){
     banner.textContent = '🏖️ 오프 (자유근무 · 출근 기록됩니다)';
   } else if(shift && shift.name){
@@ -1451,7 +1486,7 @@ let clockTimer = null;
 function startClock() {
   if (clockTimer) clearInterval(clockTimer);
   function tick() {
-    const n = new Date();
+    const n = serverNow();
     $('live-clock').textContent = `${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
     $('live-date').textContent  = `${n.getFullYear()}년 ${n.getMonth()+1}월 ${n.getDate()}일 ${DAYS[n.getDay()]}요일`;
   }
@@ -1512,11 +1547,11 @@ async function loadSecurityInfo() {
 
 // 오늘 기록 로드
 async function loadTodayAtt() {
-  // 현재 선택된 교대 기준으로 날짜 계산
-  let checkDate = today();
+  // 현재 선택된 교대 기준으로 날짜 계산 (서버 보정 한국시간)
+  const tdK = kstYMD(serverNow());
+  let checkDate = tdK;
   if(settings.mode==='shift'){
-    const now2 = new Date();
-    const m2 = now2.getHours()*60+now2.getMinutes();
+    const now2 = serverNow();
     if(selectedShift){
       // 선택된 교대 기준
       const info = getShiftInfo(selectedShift, now2);
@@ -1531,9 +1566,9 @@ async function loadTodayAtt() {
   let snap;
   try {
     snap = await getDoc(doc(db,'attendance_simple',snapDocId));
-    // 못 찾으면 today()로 재시도
-    if(!snap.exists() && checkDate !== today()){
-      const snap2 = await getDoc(doc(db,'attendance_simple',`${me.uid}_${today()}`));
+    // 못 찾으면 오늘(한국시간)로 재시도
+    if(!snap.exists() && checkDate !== tdK){
+      const snap2 = await getDoc(doc(db,'attendance_simple',`${me.uid}_${tdK}`));
       if(snap2.exists()) snap = snap2;
     }
   } catch(e){
@@ -1583,16 +1618,16 @@ function updateBtns() {
 // ── 출근 취소 ──
 window.cancelClockIn = async () => {
   if(!confirm('⚠️ 출근 기록을 취소하시겠습니까?\n\n취소하면 오늘 출근 기록이 삭제되고\n출퇴근 버튼이 초기화됩니다.\n\n부정 취소는 관리자에게 기록됩니다.')) return;
-  let checkDate = today();
+  let checkDate = kstYMD(serverNow());
   if(settings.mode==='shift'){
-    const m2=new Date().getHours()*60+new Date().getMinutes();
-    if(m2<=8*60+30){ const y=new Date(); y.setDate(y.getDate()-1); checkDate=`${y.getFullYear()}-${pad(y.getMonth()+1)}-${pad(y.getDate())}`; }
+    const m2=kstMinutes(serverNow());
+    if(m2<=8*60+30){ checkDate=prevYMD(kstYMD(serverNow())); }
   }
   try {
     // 문서 못 찾을 경우 - today()로도 시도
     let prevSnap = await getDoc(doc(db,'attendance_simple',`${me.uid}_${checkDate}`));
     if(!prevSnap.exists()){
-      const td3 = today();
+      const td3 = kstYMD(serverNow());
       if(td3 !== checkDate){
         const altSnap = await getDoc(doc(db,'attendance_simple',`${me.uid}_${td3}`));
         if(altSnap.exists()){ prevSnap = altSnap; checkDate = td3; }
@@ -1632,10 +1667,10 @@ window.cancelClockIn = async () => {
 // ── 퇴근 취소 ──
 window.cancelClockOut = async () => {
   if(!confirm('⚠️ 퇴근 기록을 취소하시겠습니까?\n\n취소하면 퇴근 시간이 삭제되고\n출근 상태로 돌아갑니다.\n\n부정 취소는 관리자에게 기록됩니다.')) return;
-  let checkDate = today();
+  let checkDate = kstYMD(serverNow());
   if(settings.mode==='shift'){
-    const m2=new Date().getHours()*60+new Date().getMinutes();
-    if(m2<=8*60+30){ const y=new Date(); y.setDate(y.getDate()-1); checkDate=`${y.getFullYear()}-${pad(y.getMonth()+1)}-${pad(y.getDate())}`; }
+    const m2=kstMinutes(serverNow());
+    if(m2<=8*60+30){ checkDate=prevYMD(kstYMD(serverNow())); }
   }
   try {
     // 문서 못 찾을 경우 대비 - uid로 오늘 기록 검색
@@ -1643,7 +1678,7 @@ window.cancelClockOut = async () => {
     let prevSnap2 = await getDoc(doc(db,'attendance_simple',`${me.uid}_${checkDate}`));
     if(!prevSnap2.exists()){
       // today()로도 시도
-      const td2 = today();
+      const td2 = kstYMD(serverNow());
       if(td2 !== checkDate){
         prevSnap2 = await getDoc(doc(db,'attendance_simple',`${me.uid}_${td2}`));
         if(prevSnap2.exists()) targetCheckDate = td2;
@@ -1686,10 +1721,11 @@ window.clockIn = async () => {
   const bi=$('btn-in');
   // 이미 출근 완료/처리중이면 무시 (coff는 막지 않음 — 네트워크 체크가 위에서 처리)
   if (bi.className.includes('cdone') || bi.textContent.includes('완료') || bi.textContent.includes('처리중')) return;
-  const now = new Date();
+  await syncServerTime(); // 서버 시간 동기화 (기기 시계 조작 방지)
+  const now = serverNow();
 
   // 3교대 모드 처리
-  let shiftDate = today(), shiftName = '', shiftStart = '', shiftEnd = '', lateMin = 0;
+  let shiftDate = kstYMD(serverNow()), shiftName = '', shiftStart = '', shiftEnd = '', lateMin = 0;
   let baseM = null, isContinuing = false; // 지각 계산 기준(분) / 자정 넘긴 나이트 여부
   if(settings.mode === 'shift'){
     // 사용자가 선택한 교대 우선, 없으면 자동 감지
@@ -1762,27 +1798,28 @@ window.clockIn = async () => {
 // 퇴근
 window.clockOut = async () => {
   if (!isNetOk) { toast('병원 WiFi에서만 퇴근 가능합니다','error'); return; }
+  await syncServerTime();
   const bo=$('btn-out');
   if (bo.className.includes('cdone')||bo.className.includes('coff')) return;
   bo.textContent='처리중...'; bo.className='btn-clock btn-cdone';
-  const now = new Date();
+  const now = serverNow();
 
   // 3교대 - 어떤 날짜 기록을 퇴근 처리할지 찾기
-  let targetDate = today();
+  const todayK = kstYMD(now);
+  let targetDate = todayK;
   if(settings.mode === 'shift'){
     // 자정~08:30 → 전날 나이트 퇴근
     const totalM2 = kstMinutes(now);
     if(totalM2 <= 8*60+30){
-      const yesterday = new Date(now); yesterday.setDate(yesterday.getDate()-1);
-      targetDate = `${yesterday.getFullYear()}-${pad(yesterday.getMonth()+1)}-${pad(yesterday.getDate())}`;
+      targetDate = prevYMD(todayK);
     }
   }
 
   let snap = await getDoc(doc(db,'attendance_simple',`${me.uid}_${targetDate}`));
   // 못 찾으면 오늘 날짜로 재시도 (날짜 계산 오차 방어)
-  if(!snap.exists() && targetDate !== today()){
-    snap = await getDoc(doc(db,'attendance_simple',`${me.uid}_${today()}`));
-    if(snap.exists()) targetDate = today();
+  if(!snap.exists() && targetDate !== todayK){
+    snap = await getDoc(doc(db,'attendance_simple',`${me.uid}_${todayK}`));
+    if(snap.exists()) targetDate = todayK;
   }
   if (!snap.exists()) { toast('출근 기록이 없습니다','error'); bo.className='btn-clock btn-cout'; bo.textContent='퇴근'; return; }
   const d = snap.data();
@@ -1845,7 +1882,7 @@ async function loadWeek() {
   let html='';
   for(let i=6;i>=0;i--){
     const d=new Date(mon); d.setDate(mon.getDate()+i);
-    const ds=d.toISOString().slice(0,10);
+    const ds=ymd(d);
     const isToday=ds===today();
     const rec=map[ds];
     const dc=d.getDay()===0?'sun':d.getDay()===6?'sat':'';
@@ -2254,6 +2291,7 @@ window.deleteAtt = async (uid, name, date) => {
     toast(`${name} ${date} 기록 삭제됐습니다 (이력 기록됨)`,'success');
     await loadToday();
     await loadDaily();
+    try { await loadWeekly(); await refreshMonthly(); } catch(e){}
   } catch(e){ toast('오류: '+e.message,'error'); }
 };
 
@@ -2362,6 +2400,7 @@ window.saveEdit = async () => {
 
     closeModal('modal-edit'); toast('수정됐습니다 (이력 기록됨)','success');
     await loadToday(); await loadDaily();
+    try { await loadWeekly(); await refreshMonthly(); } catch(e){}
   } catch(e){ toast('오류: '+e.message,'error'); }
 };
 
@@ -2561,8 +2600,7 @@ const SHIFTS = [
 ];
 
 function detectShift(now) {
-  const h = now.getHours(), mn = now.getMinutes();
-  const totalM = h*60 + mn;
+  const totalM = kstMinutes(now); // 한국시간 기준
   // 00:00~04:59 → 확실한 전날 나이트 연장 (데이 출근 시간대 아님)
   if(totalM < 5*60) return { ...SHIFTS[2], continuing:true };
   // 05:00~08:30 은 데이 출근 / 나이트 퇴근이 겹침 → 출근 맥락이므로 데이 우선
@@ -2574,16 +2612,14 @@ function detectShift(now) {
 }
 
 function getShiftInfo(shift, now) {
-  // 출근 날짜 / 퇴근 날짜 계산 (로컬 날짜 사용 - UTC 오차 방지)
-  const localDate = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-  const nowM = now.getHours()*60+now.getMinutes();
-  let shiftDate = localDate(now);
+  // 출근 날짜 / 지각 계산 — 한국시간(서버 보정) 기준. 기기 시계/시간대 조작 무력화
+  const nowM = kstMinutes(now);
+  let shiftDate = kstYMD(now);
   let baseM = shift.startM;
   let continuing = false;
   // ★ 나이트만 자정~08:30 출근 시 전날로 귀속. 데이/이브닝은 항상 오늘.
   if(shift.name === '나이트' && nowM <= 8*60+30){
-    const yesterday = new Date(now); yesterday.setDate(yesterday.getDate()-1);
-    shiftDate = localDate(yesterday);
+    shiftDate = prevYMD(shiftDate);
     baseM = 21*60; // 나이트 21:00 기준 (전날)
     continuing = true;
   }
@@ -2668,7 +2704,7 @@ window.loadWeekly = async () => {
   const dates=[];
   for(let i=0;i<7;i++){
     const d=new Date(sun); d.setDate(sun.getDate()+i);
-    dates.push(d.toISOString().slice(0,10));
+    dates.push(ymd(d));
   }
   const startDate=dates[0], endDate=dates[6];
   const deptF=$('weekly-dept').value;
@@ -2761,13 +2797,13 @@ window.loadMemberReport = async () => {
     startDate=`${y}-${mo}-01`; endDate=`${y}-${mo}-31`;
   } else if(period==='week'){
     const sun=getWeekSunday(new Date());
-    startDate=sun.toISOString().slice(0,10);
+    startDate=ymd(sun);
     const sat=new Date(sun); sat.setDate(sun.getDate()+6);
-    endDate=sat.toISOString().slice(0,10);
+    endDate=ymd(sat);
   } else {
     const yr=new Date(); yr.setFullYear(yr.getFullYear()-1);
-    startDate=yr.toISOString().slice(0,10);
-    endDate=new Date().toISOString().slice(0,10);
+    startDate=ymd(yr);
+    endDate=ymd(new Date());
   }
 
   $('mr-tbody').innerHTML='<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--gray-400);">불러오는 중...</td></tr>';
