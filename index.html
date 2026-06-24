@@ -599,7 +599,7 @@ tr:hover td{opacity:0.92;}
         <button onclick="window.exportWeeklyCSV()" style="padding:7px 14px;background:var(--success);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">📊 엑셀</button>
       </div>
       <!-- 주간 요약 통계 -->
-      <div id="weekly-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;"></div>
+      <div id="weekly-stats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;"></div>
       <div class="tbl-wrap">
         <table class="weekly-table">
           <thead id="weekly-thead"></thead>
@@ -2725,14 +2725,16 @@ window.loadWeekly = async () => {
   aSnap.forEach(d=>{ const r=d.data(); aMap[`${r.uid}_${r.date}`]=r; });
 
   // 통계
-  let totalWork=0,totalLate=0,totalAbsent=0,totalPresent=0;
-  users.forEach(u=>{ dates.forEach(dt=>{ const a=aMap[`${u.id}_${dt}`]; if(a){ totalPresent++; if(a.lateMin>0) totalLate++; if(a.clockIn&&a.clockOut) totalWork+=Math.round((a.clockOut.toDate()-a.clockIn.toDate())/60000); } }); });
-  totalAbsent=0; // 오프 개념 없으므로 미출근 제거
+  let totalWork=0,totalLate=0,totalEarly=0,totalOt=0,totalPresent=0;
+  users.forEach(u=>{ dates.forEach(dt=>{ const a=aMap[`${u.id}_${dt}`]; if(a){ totalPresent++; if(a.lateMin>0) totalLate++; if(a.earlyMin>0) totalEarly++; if(a.otMin>0) totalOt+=a.otMin; if(a.clockIn&&a.clockOut) totalWork+=Math.round((a.clockOut.toDate()-a.clockIn.toDate())/60000); } }); });
+  const otStr = totalOt>=60 ? `${Math.floor(totalOt/60)}h${totalOt%60}m` : `${totalOt}분`;
   $('weekly-stats').innerHTML=`
     <div class="stat-box"><div class="stat-num" style="color:var(--gray-700)">${users.length}</div><div class="stat-lbl">직원</div></div>
     <div class="stat-box"><div class="stat-num" style="color:var(--success)">${totalPresent}</div><div class="stat-lbl">총 출근</div></div>
+    <div class="stat-box"><div class="stat-num" style="color:var(--primary);font-size:18px;">${Math.floor(totalWork/60)}h</div><div class="stat-lbl">총 근무</div></div>
     <div class="stat-box"><div class="stat-num" style="color:var(--warning)">${totalLate}</div><div class="stat-lbl">지각</div></div>
-    <div class="stat-box"><div class="stat-num" style="color:var(--primary);font-size:18px;">${Math.floor(totalWork/60)}h</div><div class="stat-lbl">총 근무</div></div>`;
+    <div class="stat-box"><div class="stat-num" style="color:#f97316">${totalEarly}</div><div class="stat-lbl">조퇴</div></div>
+    <div class="stat-box"><div class="stat-num" style="color:var(--primary);font-size:18px;">${otStr}</div><div class="stat-lbl">연장</div></div>`;
 
   // 헤더 (이름 | 월 화 수 목 금 토 일 | 합계)
   const dayNames=['일','월','화','수','목','금','토'];
