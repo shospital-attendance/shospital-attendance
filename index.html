@@ -161,6 +161,25 @@ td{padding:12px 14px;border-bottom:1px solid var(--gray-100);color:var(--gray-80
 .weekly-table th,.weekly-table td{text-align:center;padding:8px 2px;white-space:normal;word-break:keep-all;overflow:hidden;}
 .weekly-table th:nth-child(1),.weekly-table td:nth-child(1){width:70px;text-align:left;padding-left:12px;}
 .weekly-table th:nth-child(2),.weekly-table td:nth-child(2){width:60px;text-align:left;}
+/* ── 일별 조회 ── */
+.dgrp{font-size:12px;font-weight:700;color:var(--gray-500);background:var(--gray-50);padding:6px 12px;border-radius:8px;margin:14px 0 6px;}
+.st{display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap;}
+.st-ok{background:#dcfce7;color:#16a34a;}
+.st-late{background:#fef3c7;color:#d97706;}
+.st-absent{background:var(--gray-100);color:var(--gray-400);}
+.st-tag{display:inline-block;padding:1px 7px;border-radius:8px;font-size:10px;font-weight:600;margin-left:4px;white-space:nowrap;}
+.tag-late{background:#fef3c7;color:#d97706;}
+.tag-early{background:#ffedd5;color:#f97316;}
+.tag-ot{background:#dbeafe;color:#2563eb;}
+.dcard{background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:8px;box-shadow:var(--shadow);border-left:3px solid var(--gray-200);}
+.dcard.s-ok{border-left-color:#16a34a;}
+.dcard.s-late{border-left-color:#d97706;}
+.dcard.s-absent{border-left-color:var(--gray-300);opacity:.65;}
+.daily-cards-wrap{display:none;}
+@media (max-width:640px){
+  .daily-table-wrap{display:none;}
+  .daily-cards-wrap{display:block;}
+}
 tr:last-child td{border-bottom:none;}
 tr:hover td{opacity:0.92;}
 
@@ -574,14 +593,20 @@ tr:hover td{opacity:0.92;}
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
         <input type="date" id="daily-date" style="padding:8px 12px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;">
         <button class="btn-sm" onclick="loadDaily()">조회</button>
+        <button class="btn-sm" id="daily-absent-btn" onclick="window.toggleDailyAbsent()">미출근만</button>
         <button onclick="window.exportDailyCSV()" style="padding:7px 14px;background:var(--success);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">📊 엑셀</button>
       </div>
-      <div class="tbl-wrap">
+      <!-- 요약 통계 -->
+      <div id="daily-stats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;"></div>
+      <!-- 데스크톱: 표 -->
+      <div class="tbl-wrap daily-table-wrap">
         <table>
-          <thead><tr><th>이름</th><th>부서</th><th>교대</th><th>출근</th><th>퇴근</th><th>지각</th><th>조퇴</th><th>연장</th><th>총 근무</th><th>IP</th><th>수정</th></tr></thead>
-          <tbody id="daily-tbody"></tbody>
+          <thead><tr><th>이름</th><th>교대</th><th>출근</th><th>퇴근</th><th>근무</th><th>상태</th><th>수정</th></tr></thead>
+          <tbody id="daily-table-body"></tbody>
         </table>
       </div>
+      <!-- 모바일: 카드 -->
+      <div class="daily-cards-wrap" id="daily-cards-wrap"></div>
     </div>
 
     <!-- 주별 조회 -->
@@ -600,6 +625,14 @@ tr:hover td{opacity:0.92;}
       </div>
       <!-- 주간 요약 통계 -->
       <div id="weekly-stats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;"></div>
+      <!-- 색상 범례 -->
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:11px;color:var(--gray-500);margin-bottom:10px;padding:0 2px;">
+        <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#dcfce7;vertical-align:middle;margin-right:3px;"></span>정상</span>
+        <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#fef3c7;vertical-align:middle;margin-right:3px;"></span>지각</span>
+        <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#ecfdf5;vertical-align:middle;margin-right:3px;"></span>재직중</span>
+        <span><span style="color:var(--gray-300);">·</span> 미출근</span>
+        <span style="color:var(--gray-400);">칸 안 표기: 지=지각 조=조퇴 연=연장</span>
+      </div>
       <div class="tbl-wrap">
         <table class="weekly-table">
           <thead id="weekly-thead"></thead>
@@ -2058,6 +2091,15 @@ window.loadMonthly = async () => {
 };
 
 // 일별 조회
+let dailyAbsentOnly = false;
+window.toggleDailyAbsent = () => {
+  dailyAbsentOnly = !dailyAbsentOnly;
+  const b=$('daily-absent-btn');
+  if(dailyAbsentOnly){ b.style.background='var(--danger)'; b.style.color='#fff'; }
+  else { b.style.background=''; b.style.color=''; }
+  loadDaily();
+};
+
 window.loadDaily = async () => {
   const d=$('daily-date').value; if(!d) return;
   const [uSnap,aSnap]=await Promise.all([
@@ -2066,25 +2108,71 @@ window.loadDaily = async () => {
   ]);
   const users=[]; uSnap.forEach(u=>users.push({id:u.id,...u.data()}));
   const aMap={}; aSnap.forEach(u=>{ const r=u.data(); aMap[r.uid]=r; });
-  let html='';
-  users.sort((a,b)=>(a.dept||'').localeCompare(b.dept||'','ko')).forEach(u=>{
-    const a=aMap[u.uid];
-    const inT=a?.clockIn?fmt(a.clockIn.toDate()):'—';
-    const outT=a?.clockOut?fmt(a.clockOut.toDate()):'—';
-    let totalStr='—';
-    if(a?.clockIn&&a?.clockOut){ const m2=Math.round((a.clockOut.toDate()-a.clockIn.toDate())/60000); totalStr=`${Math.floor(m2/60)}h${m2%60}m`; }
-    html+=`<tr><td>${u.name}</td><td>${u.dept||'—'}</td><td>${a?.shiftName||'—'}</td><td>${inT}</td><td>${outT}</td>
-      <td>${a?.lateMin>0?`+${a.lateMin}분`:'—'}</td>
-      <td>${a?.earlyMin>0?`-${a.earlyMin}분`:'—'}</td>
-      <td>${a?.otMin>0?`+${a.otMin}분`:'—'}</td>
-      <td>${totalStr}</td>
-      <td style="font-size:10px;">${a?.clockInIp||'—'}</td>
-      <td style="display:flex;gap:4px;">
-        <button class="btn-sm" onclick="openEdit('${u.id}','${u.name}','${d}','${inT}','${outT}','${a?.shiftName||''}')">수정</button>
-        ${a?`<button class="btn-reject" onclick="deleteAtt('${u.id}','${u.name}','${d}')">삭제</button>`:''}
-      </td></tr>`;
+
+  // ── 요약 통계 ──
+  let present=0, late=0, early=0, ot=0;
+  users.forEach(u=>{ const a=aMap[u.uid]; if(a){ present++; if(a.lateMin>0)late++; if(a.earlyMin>0)early++; if(a.otMin>0)ot++; } });
+  const absent = users.length - present;
+  $('daily-stats').innerHTML = `
+    <div class="stat-box"><div class="stat-num" style="color:var(--gray-700)">${users.length}</div><div class="stat-lbl">총원</div></div>
+    <div class="stat-box"><div class="stat-num" style="color:var(--success)">${present}</div><div class="stat-lbl">출근</div></div>
+    <div class="stat-box"><div class="stat-num" style="color:var(--danger)">${absent}</div><div class="stat-lbl">미출근</div></div>
+    <div class="stat-box"><div class="stat-num" style="color:var(--warning)">${late}</div><div class="stat-lbl">지각</div></div>
+    <div class="stat-box"><div class="stat-num" style="color:#f97316">${early}</div><div class="stat-lbl">조퇴</div></div>
+    <div class="stat-box"><div class="stat-num" style="color:var(--primary)">${ot}</div><div class="stat-lbl">연장</div></div>`;
+
+  // ── 부서별 그룹 ──
+  const groups={};
+  users.forEach(u=>{ const k=u.dept||'기타'; (groups[k]=groups[k]||[]).push(u); });
+  const deptNames=Object.keys(groups).sort((a,b)=>a.localeCompare(b,'ko'));
+
+  const statusOf=(a)=>{
+    if(!a) return {cls:'absent', badge:'<span class="st st-absent">미출근</span>', tags:''};
+    let tags='';
+    if(a.lateMin>0)  tags+=`<span class="st-tag tag-late">지각 +${a.lateMin}분</span>`;
+    if(a.earlyMin>0) tags+=`<span class="st-tag tag-early">조퇴 -${a.earlyMin}분</span>`;
+    if(a.otMin>0)    tags+=`<span class="st-tag tag-ot">연장 +${a.otMin}분</span>`;
+    if(a.lateMin>0)  return {cls:'late', badge:'<span class="st st-late">지각</span>', tags};
+    return {cls:'ok', badge:'<span class="st st-ok">정상</span>', tags};
+  };
+
+  let tableHtml='', cardHtml='';
+  deptNames.forEach(dept=>{
+    let list = groups[dept].slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'','ko'));
+    if(dailyAbsentOnly) list = list.filter(u=>!aMap[u.uid]);
+    if(!list.length) return;
+    tableHtml += `<tr><td colspan="7" class="dgrp" style="padding:6px 12px;">${dept} · ${list.length}명</td></tr>`;
+    cardHtml  += `<div class="dgrp">${dept} · ${list.length}명</div>`;
+    list.forEach(u=>{
+      const a=aMap[u.uid];
+      const inT=a?.clockIn?fmt(a.clockIn.toDate()):'—';
+      const outT=a?.clockOut?fmt(a.clockOut.toDate()):'—';
+      let totalStr='—';
+      if(a?.clockIn&&a?.clockOut){ const m2=Math.round((a.clockOut.toDate()-a.clockIn.toDate())/60000); totalStr=`${Math.floor(m2/60)}h${m2%60}m`; }
+      const s=statusOf(a);
+      const editBtns=`<button class="btn-sm" onclick="openEdit('${u.id}','${u.name}','${d}','${inT}','${outT}','${a?.shiftName||''}')">수정</button>${a?`<button class="btn-reject" onclick="deleteAtt('${u.id}','${u.name}','${d}')">삭제</button>`:''}`;
+      tableHtml += `<tr>
+        <td style="font-weight:600;">${u.name}</td>
+        <td style="font-size:12px;color:var(--gray-400);">${a?.shiftName||'—'}</td>
+        <td style="font-variant-numeric:tabular-nums;">${inT}</td>
+        <td style="font-variant-numeric:tabular-nums;">${outT}</td>
+        <td style="font-variant-numeric:tabular-nums;">${totalStr}</td>
+        <td style="white-space:nowrap;">${s.badge}${s.tags}</td>
+        <td style="display:flex;gap:4px;">${editBtns}</td>
+      </tr>`;
+      cardHtml += `<div class="dcard s-${s.cls}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <div><span style="font-weight:700;">${u.name}</span> <span style="font-size:11px;color:var(--gray-400);">${a?.shiftName||''}</span></div>
+          ${s.badge}
+        </div>
+        <div style="font-size:13px;color:var(--gray-700);">🕐 ${inT} → ${outT} <span style="color:var(--gray-400);">(${totalStr})</span></div>
+        ${s.tags?`<div style="margin-top:6px;">${s.tags}</div>`:''}
+        <div style="display:flex;gap:6px;margin-top:8px;">${editBtns}</div>
+      </div>`;
+    });
   });
-  $('daily-tbody').innerHTML=html||'<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--gray-400)">기록 없음</td></tr>';
+  $('daily-table-body').innerHTML = tableHtml || '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--gray-400)">기록 없음</td></tr>';
+  $('daily-cards-wrap').innerHTML = cardHtml || '<div style="text-align:center;padding:20px;color:var(--gray-400)">기록 없음</div>';
 };
 
 // 엑셀 - 오늘
@@ -2744,18 +2832,39 @@ window.loadWeekly = async () => {
   $('weekly-thead').innerHTML=thead;
 
   let tbody='';
+  // 셀 1칸 = 상태 색상 블록 (정상=초록 / 지각=주황 / 재직중=연초록 / 미출근=빈칸)
+  const cellHtml=(a)=>{
+    if(!a || !a.clockIn) return `<span style="color:var(--gray-200);font-size:14px;">·</span>`;
+    const inT=fmt(a.clockIn.toDate());
+    const outT=a.clockOut?fmt(a.clockOut.toDate()):'';
+    let bg='#dcfce7', fg='#15803d';      // 정상
+    if(a.lateMin>0){ bg='#fef3c7'; fg='#b45309'; }   // 지각
+    else if(!a.clockOut){ bg='#ecfdf5'; fg='#16a34a'; } // 재직중(퇴근 전)
+    let marks='';
+    if(a.lateMin>0) marks+='지';
+    if(a.earlyMin>0) marks+='조';
+    if(a.otMin>0) marks+='연';
+    const title=`${inT}${outT?' → '+outT:' (재직중)'}`+
+      `${a.lateMin>0?` · 지각 +${a.lateMin}분`:''}${a.earlyMin>0?` · 조퇴 -${a.earlyMin}분`:''}${a.otMin>0?` · 연장 +${a.otMin}분`:''}`;
+    return `<div title="${title}" style="background:${bg};color:${fg};border-radius:6px;padding:3px 1px;font-size:10px;font-weight:700;line-height:1.25;">`+
+      `${inT}<br><span style="font-weight:400;opacity:.75;">${outT||'재직'}</span>`+
+      `${marks?`<div style="font-size:8px;font-weight:700;margin-top:1px;letter-spacing:1px;">${marks}</div>`:''}</div>`;
+  };
   users.sort((a,b)=>(a.dept||'').localeCompare(b.dept||'','ko')).forEach(u=>{
-    let row=`<tr><td>${u.name}</td><td style="font-size:11px;color:var(--gray-400);">${u.dept||'—'}</td>`;
-    let wDays=0,wLate=0,wMin=0;
+    let wDays=0,wLate=0,wEarly=0,wOt=0,wMin=0;
+    let cells='';
     dates.forEach((dt,i)=>{
       const a=aMap[`${u.id}_${dt}`];
-      const inT=a?.clockIn?fmt(a.clockIn.toDate()):'';
-      const outT=a?.clockOut?fmt(a.clockOut.toDate()):'';
-      let cell='<span style="color:var(--gray-200);">—</span>';
-      if(a?.clockIn){ cell=`<span style="font-size:11px;">${inT}<br>${outT||'재직'}</span>`; wDays++; if(a.lateMin>0){wLate++;cell=`<span style="font-size:11px;color:#92400e;">${inT}🔴<br>${outT||'재직'}</span>`;} if(a.clockOut) wMin+=Math.round((a.clockOut.toDate()-a.clockIn.toDate())/60000); }
-      row+=`<td style="text-align:center;padding:6px 4px;">${cell}</td>`;
+      if(a?.clockIn){ wDays++; if(a.lateMin>0)wLate++; if(a.earlyMin>0)wEarly++; if(a.otMin>0)wOt+=a.otMin; if(a.clockOut) wMin+=Math.round((a.clockOut.toDate()-a.clockIn.toDate())/60000); }
+      cells+=`<td style="text-align:center;padding:4px 3px;">${cellHtml(a)}</td>`;
     });
-    row+=`<td style="text-align:center;">${wDays}일</td><td style="text-align:center;color:#92400e;">${wLate}회</td><td style="text-align:center;">${Math.floor(wMin/60)}h${wMin%60}m</td></tr>`;
+    // 이슈 있는 직원은 이름 옆 표시
+    const flag = wLate>0 ? ' <span title="지각 있음" style="color:#d97706;">●</span>' : '';
+    let row=`<tr><td style="font-weight:600;">${u.name}${flag}</td>`+
+      `<td style="font-size:11px;color:var(--gray-400);">${u.dept||'—'}</td>`+cells;
+    row+=`<td style="text-align:center;font-weight:700;color:var(--primary);">${wDays}</td>`+
+      `<td style="text-align:center;font-weight:700;color:${wLate>0?'#d97706':'var(--gray-300)'};">${wLate}</td>`+
+      `<td style="text-align:center;font-weight:700;">${Math.floor(wMin/60)}h${wMin%60>0?(wMin%60)+'m':''}</td></tr>`;
     tbody+=row;
   });
   $('weekly-tbody').innerHTML=tbody||'<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--gray-400)">직원이 없습니다</td></tr>';
