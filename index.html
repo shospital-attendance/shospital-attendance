@@ -949,6 +949,26 @@ function getDeviceId() {
   }
   return id;
 }
+// 하드웨어 지문 (브라우저/UA 정보 제외 → 같은 폰이면 어느 브라우저로 열어도 동일)
+// 토큰(localStorage)이 사라졌을 때만 "같은 기기인지" 보조 판정에 사용
+function getDeviceFp() {
+  try {
+    const s = [
+      navigator.platform || '',
+      [screen.width, screen.height].sort((a,b)=>a-b).join('x'),
+      window.devicePixelRatio || '',
+      screen.colorDepth || '',
+      (Intl.DateTimeFormat().resolvedOptions().timeZone) || '',
+      navigator.language || '',
+      navigator.hardwareConcurrency || '',
+      navigator.deviceMemory || '',
+      navigator.maxTouchPoints || ''
+    ].join('|');
+    let h = 5381;
+    for (let i=0;i<s.length;i++){ h = ((h<<5)+h + s.charCodeAt(i)) >>> 0; }
+    return 'F_' + h.toString(36);
+  } catch(e){ return ''; }
+}
 
 // ── 교대 선택 ──
 let selectedShift = null;
@@ -1107,7 +1127,7 @@ onAuthStateChanged(auth, async user => {
     await setDoc(ref, {
       uid:user.uid, name:user.displayName||'', email:user.email,
       photo:user.photoURL||'', status:'pending', role:'employee',
-      dept:'', deviceId:'', pendingDeviceId:'', devicePending:false,
+      dept:'', deviceId:'', deviceFp:'', pendingDeviceId:'', pendingDeviceFp:'', devicePending:false,
       defaultIn:'', defaultOut:'', realName:false,
       createdAt:serverTimestamp()
     });
@@ -1142,23 +1162,38 @@ onAuthStateChanged(auth, async user => {
 
   // 기기 확인 (관리자/슈퍼관리자는 기기 제한 없음)
   const did = getDeviceId();
+  const fp  = getDeviceFp();
   const isAdminRole = meData.role==='admin'||meData.role==='superadmin';
 
   if (!isAdminRole) {
     // 일반 직원만 기기 체크
-    if (meData.deviceId && meData.deviceId !== did) {
-      if (meData.devicePending) {
-        showPage('page-pending');
-        $('pending-msg').textContent = '기기 변경 승인을 기다리는 중입니다.\n관리자에게 문의해주세요.';
+    let tokenOk = meData.deviceId && meData.deviceId === did;
+    if (!meData.deviceId) {
+      // 기기 첫 등록 (토큰 + 지문 저장)
+      await updateDoc(ref, { deviceId: did, deviceFp: fp });
+      meData.deviceId = did; meData.deviceFp = fp;
+      tokenOk = true;
+    } else if (!tokenOk) {
+      // 토큰 불일치(ITP·캐시삭제·다른 브라우저 등) → 지문으로 보조 판정
+      if (meData.deviceFp && fp && meData.deviceFp === fp) {
+        // 같은 기기로 판단 → 토큰을 등록값으로 복구하고 조용히 통과 (기기변경 요청 안 띄움)
+        localStorage.setItem('_shospital_did', meData.deviceId);
+        tokenOk = true;
+      } else {
+        // 지문도 다름 → 진짜 다른 기기
+        if (meData.devicePending) {
+          showPage('page-pending');
+          $('pending-msg').textContent = '기기 변경 승인을 기다리는 중입니다.\n관리자에게 문의해주세요.';
+          return;
+        }
+        showPage('page-device');
         return;
       }
-      showPage('page-device');
-      return;
     }
-    // 기기 첫 등록
-    if (!meData.deviceId) {
-      await updateDoc(ref, { deviceId: did });
-      meData.deviceId = did;
+    // 지문 기록이 없던 기존 직원은 백필 (다음 토큰 손실 때 보조 판정 가능하도록)
+    if (tokenOk && !meData.deviceFp && fp) {
+      await updateDoc(ref, { deviceFp: fp });
+      meData.deviceFp = fp;
     }
   } else {
     // 관리자는 기기 등록 없이 바로 통과, 기기 pending 상태도 해제
@@ -1196,7 +1231,7 @@ window.saveMyName = async () => {
   const name = $('input-myname').value.trim();
   if (!name) { toast('이름을 입력해주세요','error'); return; }
   const did = getDeviceId();
-  await updateDoc(doc(db,'users_simple',me.uid), { name, realName:true, deviceId:did });
+  await updateDoc(doc(db,'users_simple',me.uid), { name, realName:true, deviceId:did, deviceFp:getDeviceFp() });
   meData.name    = name;
   meData.realName= true;
   meData.deviceId= did;
@@ -1206,7 +1241,8 @@ window.saveMyName = async () => {
 // ── 기기 변경 요청 ──
 window.requestDevice = async () => {
   const did = getDeviceId();
-  await updateDoc(doc(db,'users_simple',me.uid), { pendingDeviceId:did, devicePending:true });
+  const fp  = getDeviceFp();
+  await updateDoc(doc(db,'users_simple',me.uid), { pendingDeviceId:did, pendingDeviceFp:fp, devicePending:true });
   // 기기 변경 텔레그램 알림
   await sendTelegram(`📱 <b>[에스한방병원] 기기 변경 요청</b>\n👤 ${meData.name||me.email}\n기기 승인 탭에서 승인해주세요.`);
   showPage('page-pending');
@@ -1808,6 +1844,7 @@ window.clockIn = async () => {
       lateMin:0, earlyMin:0, otMin:0,
       shiftName, shiftIn:shiftStart, shiftOut:shiftEnd,
       deviceId:getDeviceId(),
+      deviceFp:getDeviceFp(),
       clockInIp
     });
     // 서버가 기록한 실제 시각을 다시 읽어 표시·지각 계산 (항상 한국시간 기준)
@@ -2184,14 +2221,14 @@ window.exportTodayCSV = async () => {
   ]);
   const users=[]; uSnap.forEach(d=>users.push({id:d.id,...d.data()}));
   const aMap={}; aSnap.forEach(d=>{ const r=d.data(); aMap[r.uid]=r; });
-  const rows=[['이름','부서','교대','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)','상태','IP','기기ID']];
+  const rows=[['이름','부서','교대','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)','상태','IP','기기ID','지문']];
   users.sort((a,b)=>(a.dept||'').localeCompare(b.dept||'','ko')).forEach(u=>{
     const a=aMap[u.uid];
     const inT=a?.clockIn?fmt(a.clockIn.toDate()):'';
     const outT=a?.clockOut?fmt(a.clockOut.toDate()):'';
     const total=a?.clockIn&&a?.clockOut?Math.round((a.clockOut.toDate()-a.clockIn.toDate())/60000):0;
     const status=!a?'미출근':a.lateMin>0?'지각':a.otMin>0?'연장':'정상';
-    rows.push([u.name,u.dept||'',a?.shiftName||'',inT,outT,a?.lateMin||0,a?.earlyMin||0,a?.otMin||0,total,status,a?.clockInIp||'',a?.deviceId||'']);
+    rows.push([u.name,u.dept||'',a?.shiftName||'',inT,outT,a?.lateMin||0,a?.earlyMin||0,a?.otMin||0,total,status,a?.clockInIp||'',a?.deviceId||'',a?.deviceFp||'']);
   });
   dlCSV(rows, `출퇴근현황_${td}.csv`);
 };
@@ -2201,12 +2238,12 @@ window.exportMonthCSV = async () => {
   const m=$('report-month').value||nowMonth();
   const [y,mo]=m.split('-');
   const snap=await getDocs(query(collection(db,'attendance_simple'),where('date','>=',`${y}-${mo}-01`),where('date','<=',`${y}-${mo}-31`)));
-  const rows=[['이름','부서','날짜','교대','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)','IP','기기ID']];
+  const rows=[['이름','부서','날짜','교대','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)','IP','기기ID','지문']];
   snap.forEach(d=>{ const r=d.data();
     const inT=r.clockIn?fmt(r.clockIn.toDate()):'';
     const outT=r.clockOut?fmt(r.clockOut.toDate()):'';
     const total=r.clockIn&&r.clockOut?Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000):0;
-    rows.push([r.name,r.dept||'',r.date,r.shiftName||'',inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total,r.clockInIp||'',r.deviceId||'']);
+    rows.push([r.name,r.dept||'',r.date,r.shiftName||'',inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total,r.clockInIp||'',r.deviceId||'',r.deviceFp||'']);
   });
   dlCSV(rows, `월별근태_${m}.csv`);
 };
@@ -2215,12 +2252,12 @@ window.exportMonthCSV = async () => {
 window.exportDailyCSV = async () => {
   const d=$('daily-date').value||today();
   const snap=await getDocs(query(collection(db,'attendance_simple'),where('date','==',d)));
-  const rows=[['이름','부서','교대','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)','IP','기기ID']];
+  const rows=[['이름','부서','교대','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)','IP','기기ID','지문']];
   snap.forEach(doc=>{ const r=doc.data();
     const inT=r.clockIn?fmt(r.clockIn.toDate()):'';
     const outT=r.clockOut?fmt(r.clockOut.toDate()):'';
     const total=r.clockIn&&r.clockOut?Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000):0;
-    rows.push([r.name,r.dept||'',r.shiftName||'',inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total,r.clockInIp||'',r.deviceId||'']);
+    rows.push([r.name,r.dept||'',r.shiftName||'',inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total,r.clockInIp||'',r.deviceId||'',r.deviceFp||'']);
   });
   dlCSV(rows, `일별근태_${d}.csv`);
 };
@@ -2304,7 +2341,7 @@ window.deleteMember = async (uid, name) => {
 
 window.resetDevice = async (uid) => {
   if(!confirm('기기를 초기화하면 다음 로그인 시 새 기기로 등록됩니다. 계속할까요?')) return;
-  await updateDoc(doc(db,'users_simple',uid),{deviceId:'',devicePending:false,pendingDeviceId:''});
+  await updateDoc(doc(db,'users_simple',uid),{deviceId:'',deviceFp:'',devicePending:false,pendingDeviceId:'',pendingDeviceFp:''});
   toast('기기가 초기화됐습니다','success'); await loadMembers();
 };
 
@@ -2328,6 +2365,8 @@ window.loadDevices = async () => {
           <div style="margin-top:6px;padding:8px;background:var(--gray-50);border-radius:6px;font-size:10px;color:var(--gray-500);">
             <div>📱 현재 기기: <span style="font-family:monospace;">${u.deviceId||'없음'}</span></div>
             <div style="margin-top:3px;">🆕 새 기기: <span style="font-family:monospace;color:var(--primary);">${u.pendingDeviceId||''}</span></div>
+            <div style="margin-top:6px;font-size:11px;">🔑 현재 지문: <span style="font-family:monospace;">${u.deviceFp||'없음'}</span></div>
+            <div style="margin-top:2px;font-size:11px;">🔑 새 지문: <span style="font-family:monospace;color:${u.pendingDeviceFp&&u.pendingDeviceFp===u.deviceFp?'var(--success)':'var(--danger)'};">${u.pendingDeviceFp||''}</span>${u.pendingDeviceFp&&u.pendingDeviceFp===u.deviceFp?' <b style="color:var(--success);">동일 기기</b>':' <b style="color:var(--danger);">다른 기기</b>'}</div>
           </div>
         </div>
         <div class="mc-actions" style="flex-direction:column;gap:6px;">
@@ -2362,11 +2401,12 @@ window.approveDevice = async (uid) => {
   const snap=await getDoc(doc(db,'users_simple',uid)); if(!snap.exists()) return;
   const newId=snap.data().pendingDeviceId;
   if(!newId){ toast('기기 ID가 없습니다','error'); return; }
-  await updateDoc(doc(db,'users_simple',uid),{deviceId:newId,devicePending:false,pendingDeviceId:''});
+  const newFp=snap.data().pendingDeviceFp||'';
+  await updateDoc(doc(db,'users_simple',uid),{deviceId:newId,deviceFp:newFp,devicePending:false,pendingDeviceId:'',pendingDeviceFp:''});
   toast('기기 변경 승인됐습니다','success'); await loadDevices(); await updateBadges();
 };
 window.rejectDevice = async (uid) => {
-  await updateDoc(doc(db,'users_simple',uid),{devicePending:false,pendingDeviceId:''});
+  await updateDoc(doc(db,'users_simple',uid),{devicePending:false,pendingDeviceId:'',pendingDeviceFp:''});
   toast('기기 변경 거절됐습니다'); await loadDevices(); await updateBadges();
 };
 
@@ -2516,7 +2556,7 @@ window.openMember = async (uid) => {
   const deviceEl=$('mem-device-info');
   if(deviceEl){
     if(u.deviceId){
-      deviceEl.innerHTML=`📱 <b>등록된 기기</b><br><span style="font-family:monospace;font-size:11px;">${u.deviceId}</span>${u.devicePending?`<br><br>⏳ <b style="color:var(--warning);">기기 변경 요청 대기 중</b><br><span style="font-family:monospace;font-size:11px;">${u.pendingDeviceId||''}</span>`:''}`;
+      deviceEl.innerHTML=`📱 <b>등록된 기기</b><br><span style="font-family:monospace;font-size:11px;">${u.deviceId}</span><br><span style="font-family:monospace;font-size:10px;color:var(--gray-400);">🔑 ${u.deviceFp||'지문 없음'}</span>${u.devicePending?`<br><br>⏳ <b style="color:var(--warning);">기기 변경 요청 대기 중</b><br><span style="font-family:monospace;font-size:11px;">${u.pendingDeviceId||''}</span>`:''}`;
     } else {
       deviceEl.innerHTML='⚠️ 기기 미등록 (다음 로그인 시 자동 등록)';
     }
@@ -2873,12 +2913,12 @@ window.loadWeekly = async () => {
 window.exportWeeklyCSV = async () => {
   const dates = kstWeekDates(weekBaseDate);
   const snap=await getDocs(query(collection(db,'attendance_simple'),where('date','>=',dates[0]),where('date','<=',dates[6])));
-  const rows=[['이름','부서','날짜','교대','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)','IP','기기ID']];
+  const rows=[['이름','부서','날짜','교대','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)','IP','기기ID','지문']];
   snap.forEach(d=>{ const r=d.data();
     const inT=r.clockIn?fmt(r.clockIn.toDate()):'';
     const outT=r.clockOut?fmt(r.clockOut.toDate()):'';
     const total=r.clockIn&&r.clockOut?Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000):0;
-    rows.push([r.name,r.dept||'',r.date,r.shiftName||'',inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total,r.clockInIp||'',r.deviceId||'']);
+    rows.push([r.name,r.dept||'',r.date,r.shiftName||'',inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total,r.clockInIp||'',r.deviceId||'',r.deviceFp||'']);
   });
   dlCSV(rows,`주별근태_${dates[0]}~${dates[6]}.csv`);
 };
@@ -2980,7 +3020,7 @@ window.exportMemberCSV = async () => {
   const allSnap=await getDocs(query(collection(db,'attendance_simple'),where('uid','==',uid)));
   const filteredDocs=[]; allSnap.forEach(d=>{ const r=d.data(); if(r.date>=`${y}-${mo}-01`&&r.date<=`${y}-${mo}-31`) filteredDocs.push(r); });
   const snap={forEach:(fn)=>filteredDocs.forEach(r=>fn({data:()=>r}))};
-  const rows=[['날짜','교대','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)','IP','기기ID']];
+  const rows=[['날짜','교대','출근','퇴근','지각(분)','조퇴(분)','연장(분)','총근무(분)','IP','기기ID','지문']];
   let name='직원';
   // 날짜 오름차순 정렬
   filteredDocs.sort((a,b)=>a.date.localeCompare(b.date));
@@ -2989,7 +3029,7 @@ window.exportMemberCSV = async () => {
     const inT=r.clockIn?fmt(r.clockIn.toDate()):'';
     const outT=r.clockOut?fmt(r.clockOut.toDate()):'';
     const total=r.clockIn&&r.clockOut?Math.round((r.clockOut.toDate()-r.clockIn.toDate())/60000):0;
-    rows.push([r.date,r.shiftName||'',inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total,r.clockInIp||'',r.deviceId||'']);
+    rows.push([r.date,r.shiftName||'',inT,outT,r.lateMin||0,r.earlyMin||0,r.otMin||0,total,r.clockInIp||'',r.deviceId||'',r.deviceFp||'']);
   });
   dlCSV(rows,`${name}_${m}_근무기록.csv`);
 };
