@@ -1727,6 +1727,7 @@ window.cancelClockIn = async () => {
         prevLateMin: prev.lateMin||0,
         cancelledAt: serverTimestamp()
       });
+      await sendTelegram(`⚠️ <b>[에스한방병원] 출근 취소</b>\n👤 ${meData.name} (${meData.dept||''})\n🗑 ${prev.clockIn?fmt(prev.clockIn.toDate()):'-'} 출근 기록 취소\n📋 ${prev.shiftName||''} 근무\n📅 ${checkDate}\n※ 부정 취소 여부를 확인해주세요.`);
     }
     await deleteDoc(doc(db,'attendance_simple',`${me.uid}_${checkDate}`));
     // UI 초기화
@@ -1781,6 +1782,7 @@ window.cancelClockOut = async () => {
         prevEarlyMin: prev2.earlyMin||0,
         cancelledAt: serverTimestamp()
       });
+      await sendTelegram(`⚠️ <b>[에스한방병원] 퇴근 취소</b>\n👤 ${meData.name} (${meData.dept||''})\n🗑 ${prev2.clockOut?fmt(prev2.clockOut.toDate()):'-'} 퇴근 기록 취소\n📋 ${prev2.shiftName||''} 근무\n📅 ${checkDate}\n※ 부정 취소 여부를 확인해주세요.`);
     }
     await updateDoc(doc(db,'attendance_simple',`${me.uid}_${checkDate}`),{
       clockOut:null, earlyMin:0, otMin:0
@@ -2429,6 +2431,8 @@ window.deleteAtt = async (uid, name, date) => {
       editorEmail: me.email||'', editorRole: meData?.role||'',
       editedAt: serverTimestamp()
     });
+    // 관리자 삭제 알림
+    await sendTelegram(`🗑 <b>[에스한방병원] 출퇴근 기록 삭제</b>\n👤 대상: ${name} (${b?.dept||''})\n📅 ${date}\n⏰ 출근 ${b?.clockIn?fmt(b.clockIn.toDate()):'—'} / 퇴근 ${b?.clockOut?fmt(b.clockOut.toDate()):'—'}\n🛠 삭제자: ${meData?.name||me.email}`);
     toast(`${name} ${date} 기록 삭제됐습니다 (이력 기록됨)`,'success');
     await loadToday();
     await loadDaily();
@@ -2538,6 +2542,8 @@ window.saveEdit = async () => {
       editorRole: meData?.role || '',
       editedAt: serverTimestamp()
     });
+    // 관리자 수정 알림
+    await sendTelegram(`✏️ <b>[에스한방병원] 출퇴근 기록 수정</b>\n👤 대상: ${u.name||''} (${u.dept||''})\n📅 ${origDate}${date!==origDate?` → ${date}`:''}\n⏰ 출근 ${beforeIn} → ${fmt(inDate)}${outT?` / 퇴근 ${beforeOut} → ${fmt(new Date(`${date}T${outT}:00`))}`:''}\n🛠 수정자: ${meData?.name||me.email}${note?`\n📝 ${note}`:''}`);
 
     closeModal('modal-edit'); toast('수정됐습니다 (이력 기록됨)','success');
     await loadToday(); await loadDaily();
